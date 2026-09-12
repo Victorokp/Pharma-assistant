@@ -10,6 +10,8 @@ servers:
 tags:
   - name: health
     description: Health operations
+  - name: pharma
+    description: Pharmacy education assistant operations
 paths:
   /healthz:
     get:
@@ -24,6 +26,42 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+  /pharma/ask:
+    post:
+      operationId: askPharmaAssistant
+      tags: [pharma]
+      summary: Answer a pharmacy or drug-related question
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PharmaQuestionInput"
+      responses:
+        "200":
+          description: Educational assistant answer
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PharmaAnswer"
+        "400":
+          description: Invalid question
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PharmaError"
+        "502":
+          description: AI provider error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PharmaError"
+        "503":
+          description: AI provider is not configured
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PharmaError"
 components:
   schemas:
     HealthStatus:
@@ -33,4 +71,27 @@ components:
           type: string
       required:
         - status
+    PharmaQuestionInput:
+      type: object
+      properties:
+        question:
+          type: string
+          minLength: 1
+          maxLength: 1000
+      required:
+        - question
+    PharmaAnswer:
+      type: object
+      properties:
+        answer:
+          type: string
+      required:
+        - answer
+    PharmaError:
+      type: object
+      properties:
+        error:
+          type: string
+      required:
+        - error
 

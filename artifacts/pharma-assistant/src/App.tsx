@@ -1,5 +1,6 @@
 import { type FormEvent, type ReactNode, useRef, useState } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { askPharmaAssistant } from '@workspace/api-client-react';
 import { ErrorBoundary } from '@/components/error-boundary';
 import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
@@ -38,14 +39,12 @@ function Home() {
   const [activeSection, setActiveSection] = useState<SectionId>('home');
   const [quizQuestion, setQuizQuestion] = useState(0);
   const [quizRevealed, setQuizRevealed] = useState(false);
-  const responseTimeout = useRef<number | null>(null);
   const questionInput = useRef<HTMLTextAreaElement | null>(null);
 
-  const submitQuestion = (rawQuestion: string) => {
+  const submitQuestion = async (rawQuestion: string) => {
     const trimmedQuestion = rawQuestion.trim();
     if (!trimmedQuestion || isThinking) return;
 
-    const answer = getStarterAnswer(trimmedQuestion);
     const now = getTimeLabel();
     setMessages((current) => [
       ...current,
@@ -54,14 +53,30 @@ function Home() {
     setQuestion('');
     setIsThinking(true);
 
-    responseTimeout.current = window.setTimeout(() => {
+    try {
+      const answer = await askPharmaAssistant({ question: trimmedQuestion });
       setMessages((current) => [
         ...current,
-        { id: Date.now() + 1, role: 'assistant', text: answer, timestamp: getTimeLabel() },
+        {
+          id: Date.now() + 1,
+          role: 'assistant',
+          text: answer.answer,
+          timestamp: getTimeLabel(),
+        },
       ]);
+    } catch (error) {
+      setMessages((current) => [
+        ...current,
+        {
+          id: Date.now() + 1,
+          role: 'assistant',
+          text: error instanceof Error ? error.message : 'The AI answer service is unavailable right now. Please try again.',
+          timestamp: getTimeLabel(),
+        },
+      ]);
+    } finally {
       setIsThinking(false);
-      responseTimeout.current = null;
-    }, 650);
+    }
   };
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
@@ -84,10 +99,6 @@ function Home() {
   };
 
   const handleReset = () => {
-    if (responseTimeout.current !== null) {
-      window.clearTimeout(responseTimeout.current);
-      responseTimeout.current = null;
-    }
     setMessages([]);
     setQuestion('');
     setIsThinking(false);
@@ -131,7 +142,7 @@ function Home() {
 
           <div className="hidden items-center gap-2 rounded-full border border-border bg-card/70 px-3 py-2 text-xs font-medium text-muted-foreground md:flex">
             <span className="size-2 rounded-full bg-[#67a774]" />
-            Local mode
+            AI answers
           </div>
         </div>
       </header>
@@ -189,7 +200,7 @@ function Home() {
                       aria-label="Ask about a drug or pharmacy topic"
                     />
                     <div className="mt-2 flex items-center justify-between px-1 text-[11px] text-muted-foreground">
-                      <span>{isThinking ? 'Checking local study notes…' : 'No AI or API connection yet.'}</span>
+                      <span>{isThinking ? 'Generating a structured answer…' : 'Educational answers for study use.'}</span>
                       <span>{question.length}/280</span>
                     </div>
                     <div className="mt-5 grid grid-cols-1 gap-2 sm:grid-cols-3">
@@ -230,7 +241,7 @@ function Home() {
           <div className="mt-10 rounded-[24px] border border-[#d9d2c1] bg-card shadow-[0_18px_50px_hsl(191_38%_18%_/_0.07)]">
             <div className="flex items-center justify-between border-b border-border px-5 py-4 sm:px-7">
               <div>
-                <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.2em] text-accent">Local answer desk</p>
+                <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.2em] text-accent">AI answer desk</p>
                 <h2 className="mt-1 font-serif text-2xl font-semibold tracking-[-0.04em] text-primary">Your study conversation</h2>
               </div>
               {messages.length > 0 && (
@@ -280,7 +291,7 @@ function Home() {
                         <Sparkles className="size-4" aria-hidden="true" />
                       </div>
                       <div className="rounded-2xl rounded-tl-sm bg-[#edf3f0] px-4 py-3 text-sm text-primary">
-                        <span className="animate-pulse-soft">Looking through the local starter notes…</span>
+                        <span className="animate-pulse-soft">Writing a student-friendly answer…</span>
                       </div>
                     </div>
                   )}
@@ -493,11 +504,11 @@ function MessageBubble({ message }: { message: Message }) {
         </div>
       )}
       <div className={`max-w-[82%] ${isUser ? 'items-end' : ''}`}>
-        <div className={`rounded-2xl px-4 py-3 text-sm leading-6 ${isUser ? 'rounded-tr-sm bg-primary text-primary-foreground' : 'rounded-tl-sm border border-[#dce6e1] bg-[#edf3f0] text-primary'}`}>
+        <div className={`whitespace-pre-wrap rounded-2xl px-4 py-3 text-sm leading-6 ${isUser ? 'rounded-tr-sm bg-primary text-primary-foreground' : 'rounded-tl-sm border border-[#dce6e1] bg-[#edf3f0] text-primary'}`}>
           {message.text}
         </div>
         <div className={`mt-1.5 font-mono text-[9px] uppercase tracking-[0.14em] text-muted-foreground ${isUser ? 'text-right' : ''}`}>
-          {isUser ? 'You' : 'Local starter answer'} · {message.timestamp}
+          {isUser ? 'You' : 'AI-generated educational answer'} · {message.timestamp}
         </div>
       </div>
     </div>
@@ -506,26 +517,6 @@ function MessageBubble({ message }: { message: Message }) {
 
 function getTimeLabel() {
   return new Intl.DateTimeFormat('en', { hour: 'numeric', minute: '2-digit' }).format(new Date());
-}
-
-function getStarterAnswer(question: string) {
-  const normalized = question.toLowerCase();
-  if (normalized.includes('cetirizine')) {
-    return 'Cetirizine is an antihistamine commonly used for allergy symptoms such as sneezing, a runny nose, or itchy eyes. It can make some people drowsy. Follow the package directions, and ask a pharmacist if you take other medicines or have a health condition.';
-  }
-  if (normalized.includes('ibuprofen') || normalized.includes('pain relief')) {
-    return 'Ibuprofen is an anti-inflammatory pain reliever. Taking it with food or milk may help reduce stomach upset, but it is not right for everyone — including some people with kidney disease, a history of stomach ulcers, or certain heart conditions. A pharmacist can help you choose safely.';
-  }
-  if (normalized.includes('missed') || normalized.includes('dose')) {
-    return 'For a missed dose, the safest next step depends on the medicine. Check the leaflet or pharmacy label first; many medicines say to take it when remembered unless it is nearly time for the next dose. Do not double up unless a clinician specifically tells you to.';
-  }
-  if (normalized.includes('label')) {
-    return 'Start with the active ingredient, strength, directions, and maximum amount in 24 hours. Check the warnings for age limits, drowsiness, and duplicate ingredients in other products. If a label is confusing, take it to your pharmacist before taking the medicine.';
-  }
-  if (normalized.includes('cold') || normalized.includes('allerg')) {
-    return 'Cold and allergy products can overlap in their ingredients, especially pain relievers and antihistamines. Compare active ingredients rather than brand names, and choose one product that matches your main symptom. A pharmacist can help if you take regular medicines.';
-  }
-  return 'That is a good question to bring to the counter. I can offer a general starting point, but the right answer can change with your age, health history, allergies, and other medicines. Check the package information and ask a pharmacist for advice specific to you.';
 }
 
 function Router() {
