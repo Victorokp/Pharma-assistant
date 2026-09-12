@@ -89,6 +89,12 @@ router.post("/pharma/ask", async (req, res) => {
     res.json({ answer });
   } catch (error) {
     req.log.error({ err: error }, "AI provider request failed");
+    const providerCode =
+      typeof error === "object" && error !== null && "code" in error ? error.code : undefined;
+    if (providerCode === "credit_balance_exhausted") {
+      res.status(503).json({ error: "The AI provider account has no remaining credits. Please use a funded API key." });
+      return;
+    }
     res.status(502).json({ error: "The AI answer service is unavailable right now. Please try again." });
   }
 });
