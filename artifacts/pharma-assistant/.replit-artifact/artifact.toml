@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "Pharma Assistant"
+description = "A clean, pharmacy-themed web app for asking questions about common drugs and pharmacy topics, with local topic search and helpful starter answers."
+version = "1.0.0"
+id = "artifacts/pharma-assistant"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 24702
+
+[services.development]
+run = "pnpm --filter @workspace/pharma-assistant run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/pharma-assistant", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/pharma-assistant/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "24702"
+BASE_PATH = "/"
