@@ -5,13 +5,13 @@ import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import NotFound from '@/pages/not-found';
 import {
-  Activity,
-  ArrowUpRight,
   BookOpen,
+  Brain,
   CheckCircle2,
-  CircleHelp,
+  ChevronRight,
   Clock3,
   FlaskConical,
+  GraduationCap,
   HeartPulse,
   Info,
   Pill,
@@ -35,7 +35,11 @@ function Home() {
   const [question, setQuestion] = useState('');
   const [messages, setMessages] = useState<Message[]>([]);
   const [isThinking, setIsThinking] = useState(false);
+  const [activeSection, setActiveSection] = useState<SectionId>('home');
+  const [quizQuestion, setQuizQuestion] = useState(0);
+  const [quizRevealed, setQuizRevealed] = useState(false);
   const responseTimeout = useRef<number | null>(null);
+  const questionInput = useRef<HTMLTextAreaElement | null>(null);
 
   const submitQuestion = (rawQuestion: string) => {
     const trimmedQuestion = rawQuestion.trim();
@@ -65,6 +69,20 @@ function Home() {
     submitQuestion(question);
   };
 
+  const scrollToSection = (section: SectionId) => {
+    setActiveSection(section);
+    document.getElementById(section)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
+  const startQuiz = () => {
+    setQuizRevealed(false);
+    scrollToSection('quiz');
+  };
+
+  const startStudyMode = () => {
+    scrollToSection('study');
+  };
+
   const handleReset = () => {
     if (responseTimeout.current !== null) {
       window.clearTimeout(responseTimeout.current);
@@ -77,47 +95,143 @@ function Home() {
 
   return (
     <div className="grain min-h-[100dvh] text-foreground">
-      <header className="mx-auto flex w-full max-w-[1420px] items-center justify-between px-5 py-5 sm:px-8 lg:px-12">
-        <div className="flex items-center gap-3" data-testid="brand-pharma-assistant">
-          <div className="flex size-10 items-center justify-center rounded-[13px] bg-primary text-secondary shadow-[4px_4px_0_hsl(var(--secondary))]">
-            <Pill className="size-5" strokeWidth={2.5} aria-hidden="true" />
+      <header className="sticky top-0 z-30 border-b border-border/80 bg-background/90 backdrop-blur-md">
+        <div className="mx-auto flex w-full max-w-[1240px] items-center justify-between gap-5 px-5 py-4 sm:px-8 lg:px-10">
+          <button
+            type="button"
+            onClick={() => scrollToSection('home')}
+            className="focus-ring flex shrink-0 items-center gap-3 rounded-xl text-left"
+            data-testid="brand-pharma-assistant"
+          >
+            <span className="flex size-10 items-center justify-center rounded-[13px] bg-primary text-secondary shadow-[4px_4px_0_hsl(var(--secondary))]">
+              <Pill className="size-5" strokeWidth={2.5} aria-hidden="true" />
+            </span>
+            <span>
+              <span className="block font-serif text-[1.05rem] font-semibold tracking-[-0.03em] text-primary">Pharma Assistant</span>
+              <span className="block font-mono text-[9px] uppercase tracking-[0.2em] text-muted-foreground">study companion</span>
+            </span>
+          </button>
+
+          <nav className="nav-scroll flex max-w-[58vw] items-center gap-1 overflow-x-auto rounded-full border border-border bg-card/70 p-1 sm:max-w-none" aria-label="Primary navigation">
+            {navItems.map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => scrollToSection(item.id)}
+                className={`focus-ring flex shrink-0 items-center gap-2 rounded-full px-3 py-2 text-xs font-semibold transition-colors sm:px-4 ${
+                  activeSection === item.id ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted hover:text-primary'
+                }`}
+                data-testid={`nav-${item.id}`}
+              >
+                <item.icon className="size-3.5" aria-hidden="true" />
+                {item.label}
+              </button>
+            ))}
+          </nav>
+
+          <div className="hidden items-center gap-2 rounded-full border border-border bg-card/70 px-3 py-2 text-xs font-medium text-muted-foreground md:flex">
+            <span className="size-2 rounded-full bg-[#67a774]" />
+            Local mode
           </div>
-          <div>
-            <div className="font-serif text-[1.15rem] font-semibold tracking-[-0.03em]">pharma assistant</div>
-            <div className="font-mono text-[9px] uppercase tracking-[0.24em] text-muted-foreground">your everyday counter</div>
-          </div>
-        </div>
-        <div className="hidden items-center gap-2 rounded-full border border-border bg-card/70 px-3 py-2 text-xs font-medium text-muted-foreground shadow-sm sm:flex">
-          <span className="size-2 rounded-full bg-[#67a774]" />
-          Local answers only
         </div>
       </header>
 
-      <main className="mx-auto grid w-full max-w-[1420px] gap-8 px-5 pb-12 sm:px-8 lg:grid-cols-[minmax(0,1fr)_320px] lg:gap-12 lg:px-12">
-        <section className="min-w-0">
-          <div className="mb-8 max-w-3xl animate-rise-in sm:mb-10">
-            <div className="mb-4 flex items-center gap-2 font-mono text-[10px] font-semibold uppercase tracking-[0.2em] text-accent">
-              <span className="h-px w-8 bg-accent" />
-              Clear answers, no rush
+      <main className="mx-auto w-full max-w-[1240px] px-5 pb-12 sm:px-8 lg:px-10">
+        <section id="home" className="scroll-mt-28 py-12 sm:py-16 lg:py-20">
+          <div className="grid items-center gap-10 lg:grid-cols-[minmax(0,1.02fr)_minmax(360px,.98fr)] lg:gap-16">
+            <div className="animate-rise-in">
+              <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-[#d9d2c1] bg-card/70 px-3 py-1.5 font-mono text-[10px] font-semibold uppercase tracking-[0.18em] text-accent">
+                <span className="size-1.5 rounded-full bg-accent" />
+                Your study desk, on demand
+              </div>
+              <h1 className="max-w-2xl font-serif text-[clamp(3rem,7vw,6.8rem)] font-semibold leading-[.91] tracking-[-0.07em] text-primary">
+                Pharmacy knowledge, made clearer.
+              </h1>
+              <p className="mt-6 max-w-xl text-lg leading-8 text-muted-foreground">
+                Your intelligent pharmacy study companion. Ask a question, practice a concept, or review a topic at your own pace.
+              </p>
+              <div className="mt-8 flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
+                <span className="flex items-center gap-2">
+                  <CheckCircle2 className="size-4 text-[#67a774]" aria-hidden="true" />
+                  Local study library
+                </span>
+                <span className="flex items-center gap-2">
+                  <ShieldCheck className="size-4 text-accent" aria-hidden="true" />
+                  Educational only
+                </span>
+              </div>
             </div>
-            <h1 className="max-w-3xl font-serif text-[clamp(2.8rem,6vw,5.7rem)] font-semibold leading-[.94] tracking-[-0.065em] text-primary">
-              A calmer way to ask about medicine.
-            </h1>
-            <p className="mt-5 max-w-xl text-[1.02rem] leading-7 text-muted-foreground">
-              Get a plain-language starting point for common drugs, symptoms, and pharmacy questions. Bring your question exactly as it comes to mind.
-            </p>
+
+            <div className="animate-rise-in [animation-delay:100ms]">
+              <div className="relative overflow-hidden rounded-[28px] border border-[#d9d2c1] bg-card p-4 shadow-[0_24px_70px_hsl(191_38%_18%_/_0.1)] sm:p-5">
+                <div className="absolute -right-14 -top-16 size-44 rounded-full bg-secondary/20 blur-2xl" />
+                <div className="relative">
+                  <div className="mb-5 flex items-center justify-between px-1">
+                    <div>
+                      <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.2em] text-accent">Ask Pharma Assistant</p>
+                      <p className="mt-1 text-sm text-muted-foreground">Start with a drug or topic</p>
+                    </div>
+                    <div className="flex size-10 items-center justify-center rounded-xl bg-[#e7f0ed] text-primary">
+                      <Search className="size-5" aria-hidden="true" />
+                    </div>
+                  </div>
+
+                  <form onSubmit={handleSubmit} data-testid="form-question">
+                    <textarea
+                      ref={questionInput}
+                      value={question}
+                      onChange={(event) => setQuestion(event.target.value)}
+                      placeholder="Ask about a drug or pharmacy topic..."
+                      rows={5}
+                      maxLength={280}
+                      className="focus-ring min-h-[150px] w-full resize-none rounded-2xl border border-[#d9d2c1] bg-background px-4 py-4 text-[1rem] leading-7 text-primary shadow-inner transition-colors placeholder:text-[#9d988c] focus:border-[#a7bcb4] focus:outline-none"
+                      data-testid="input-question"
+                      aria-label="Ask about a drug or pharmacy topic"
+                    />
+                    <div className="mt-2 flex items-center justify-between px-1 text-[11px] text-muted-foreground">
+                      <span>{isThinking ? 'Checking local study notes…' : 'No AI or API connection yet.'}</span>
+                      <span>{question.length}/280</span>
+                    </div>
+                    <div className="mt-5 grid grid-cols-1 gap-2 sm:grid-cols-3">
+                      <button
+                        type="submit"
+                        disabled={!question.trim() || isThinking}
+                        className="focus-ring flex min-h-11 items-center justify-center gap-2 rounded-xl bg-primary px-4 text-sm font-bold text-primary-foreground transition-all hover:-translate-y-0.5 hover:bg-[#294f55] disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:translate-y-0"
+                        data-testid="button-ask"
+                      >
+                        <Send className="size-4" aria-hidden="true" />
+                        Ask
+                      </button>
+                      <button
+                        type="button"
+                        onClick={startQuiz}
+                        className="focus-ring flex min-h-11 items-center justify-center gap-2 rounded-xl border border-border bg-background px-4 text-sm font-bold text-primary transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:bg-muted"
+                        data-testid="button-quiz-me"
+                      >
+                        <Brain className="size-4" aria-hidden="true" />
+                        Quiz Me
+                      </button>
+                      <button
+                        type="button"
+                        onClick={startStudyMode}
+                        className="focus-ring flex min-h-11 items-center justify-center gap-2 rounded-xl border border-border bg-background px-4 text-sm font-bold text-primary transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:bg-muted"
+                        data-testid="button-study-mode"
+                      >
+                        <BookOpen className="size-4" aria-hidden="true" />
+                        Study Mode
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            </div>
           </div>
 
-          <div className="relative overflow-hidden rounded-[26px] border border-[#d9d2c1] bg-card shadow-[0_18px_50px_hsl(191_38%_18%_/_0.07)] animate-rise-in [animation-delay:80ms]">
+          <div className="mt-10 rounded-[24px] border border-[#d9d2c1] bg-card shadow-[0_18px_50px_hsl(191_38%_18%_/_0.07)]">
             <div className="flex items-center justify-between border-b border-border px-5 py-4 sm:px-7">
-              <div className="flex items-center gap-3">
-                <div className="flex size-9 items-center justify-center rounded-full bg-[#e7f0ed] text-primary">
-                  <CircleHelp className="size-[18px]" aria-hidden="true" />
-                </div>
-                <div>
-                  <div className="text-sm font-semibold text-primary">Ask the counter</div>
-                  <div className="text-xs text-muted-foreground">A local starter answer, not a diagnosis</div>
-                </div>
+              <div>
+                <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.2em] text-accent">Local answer desk</p>
+                <h2 className="mt-1 font-serif text-2xl font-semibold tracking-[-0.04em] text-primary">Your study conversation</h2>
               </div>
               {messages.length > 0 && (
                 <button
@@ -131,23 +245,22 @@ function Home() {
                 </button>
               )}
             </div>
-
-            <div className="min-h-[290px] px-5 py-6 sm:min-h-[335px] sm:px-7">
+            <div className="min-h-[180px] px-5 py-6 sm:px-7">
               {messages.length === 0 && !isThinking ? (
-                <div className="flex min-h-[245px] flex-col items-center justify-center text-center">
-                  <div className="mb-4 flex size-14 items-center justify-center rounded-2xl border border-[#e5ddca] bg-[#faf6e9] text-[#b28b2d]">
-                    <Search className="size-6" aria-hidden="true" />
-                  </div>
-                  <h2 className="font-serif text-2xl font-semibold tracking-[-0.03em] text-primary">What’s on your mind?</h2>
-                  <p className="mt-2 max-w-sm text-sm leading-6 text-muted-foreground">
-                    Ask about a medicine, a missed dose, or what to expect from an everyday pharmacy product.
+                <div className="flex min-h-[130px] flex-col items-center justify-center text-center">
+                  <Sparkles className="mb-3 size-5 text-accent" aria-hidden="true" />
+                  <p className="max-w-md text-sm leading-6 text-muted-foreground">
+                    Ask your first question above to see a local starter answer, or jump into Quiz Me and Study Mode.
                   </p>
-                  <div className="mt-5 flex flex-wrap justify-center gap-2">
-                    {starterPrompts.slice(0, 2).map((prompt) => (
+                  <div className="mt-4 flex flex-wrap justify-center gap-2">
+                    {starterPrompts.map((prompt) => (
                       <button
                         key={prompt}
                         type="button"
-                        onClick={() => submitQuestion(prompt)}
+                        onClick={() => {
+                          setQuestion(prompt);
+                          questionInput.current?.focus();
+                        }}
                         className="focus-ring rounded-full border border-border bg-background px-3 py-2 text-xs font-semibold text-primary transition-all hover:-translate-y-0.5 hover:border-[#b9a974] hover:bg-[#fbf7e9]"
                         data-testid={`button-starter-${prompt.toLowerCase().replaceAll(' ', '-')}`}
                       >
@@ -174,95 +287,132 @@ function Home() {
                 </div>
               )}
             </div>
-
-            <form onSubmit={handleSubmit} className="border-t border-border bg-[#faf8f1] p-4 sm:p-5" data-testid="form-question">
-              <div className="relative">
-                <textarea
-                  value={question}
-                  onChange={(event) => setQuestion(event.target.value)}
-                  placeholder="Try “Can I take ibuprofen with food?”"
-                  rows={2}
-                  maxLength={280}
-                  className="focus-ring min-h-[76px] w-full resize-none rounded-2xl border border-[#d9d2c1] bg-card px-4 py-3 pr-14 text-sm leading-6 text-primary shadow-sm transition-colors placeholder:text-[#9d988c] focus:border-[#a7bcb4] focus:outline-none"
-                  data-testid="input-question"
-                  aria-label="Your pharmacy question"
-                />
-                <button
-                  type="submit"
-                  disabled={!question.trim() || isThinking}
-                  className="focus-ring absolute bottom-3 right-3 flex size-9 items-center justify-center rounded-xl bg-secondary text-primary transition-all hover:-translate-y-0.5 hover:bg-[#f2cd70] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:translate-y-0"
-                  data-testid="button-submit-question"
-                  aria-label="Submit question"
-                >
-                  <Send className="size-4" aria-hidden="true" />
-                </button>
-              </div>
-              <div className="mt-2 flex items-center justify-between px-1 text-[11px] text-muted-foreground">
-                <span>Press submit when you’re ready.</span>
-                <span>{question.length}/280</span>
-              </div>
-            </form>
-          </div>
-
-          <div className="mt-7 rounded-2xl border border-[#ded7c6] bg-[#f2ede0]/75 px-4 py-3.5 sm:px-5" data-testid="notice-educational">
-            <div className="flex items-start gap-3">
-              <Info className="mt-0.5 size-4 shrink-0 text-accent" aria-hidden="true" />
-              <p className="text-xs leading-5 text-muted-foreground">
-                <span className="font-semibold text-primary">A quick safety note:</span> Pharma Assistant shares educational information only. It isn’t a substitute for a pharmacist or clinician, especially for urgent or personal medical concerns.
-              </p>
-            </div>
           </div>
         </section>
 
-        <aside className="space-y-5 lg:pt-[166px]">
-          <div className="rounded-[24px] border border-[#d9d2c1] bg-primary p-5 text-primary-foreground shadow-[0_18px_50px_hsl(191_38%_18%_/_0.12)] sm:p-6 animate-rise-in [animation-delay:160ms]">
-            <div className="mb-7 flex items-center justify-between">
-              <div className="flex size-10 items-center justify-center rounded-xl bg-[#294f55] text-secondary">
-                <BookOpen className="size-5" aria-hidden="true" />
-              </div>
-              <span className="rounded-full border border-[#547376] px-2.5 py-1 font-mono text-[9px] uppercase tracking-[0.17em] text-[#c7d5cf]">Browse</span>
+        <section id="drugs" className="scroll-mt-28 border-t border-border py-12 sm:py-16">
+          <SectionEyebrow>Drugs</SectionEyebrow>
+          <div className="mt-3 grid gap-8 lg:grid-cols-[.72fr_1.28fr] lg:items-end">
+            <div>
+              <h2 className="font-serif text-[clamp(2.4rem,5vw,4.5rem)] font-semibold leading-none tracking-[-0.06em] text-primary">Start with the essentials.</h2>
+              <p className="mt-4 max-w-md text-sm leading-6 text-muted-foreground">Browse the topics in the starter library, then send one to the local answer desk.</p>
             </div>
-            <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-[#a9c0b9]">Popular topics</p>
-            <h2 className="mt-2 font-serif text-[2rem] font-semibold leading-[1.02] tracking-[-0.05em]">A few good places to start.</h2>
-            <div className="mt-5 divide-y divide-[#31575c]">
-              {popularTopics.map((topic) => (
+            <div className="grid gap-3 sm:grid-cols-2">
+              {popularTopics.slice(0, 4).map((topic) => (
                 <button
+                  key={topic.id}
                   type="button"
-                  key={topic.label}
-                  onClick={() => submitQuestion(topic.question)}
-                  className="focus-ring group flex w-full items-center gap-3 py-3.5 text-left transition-colors first:pt-0 last:pb-0 hover:text-secondary"
+                  onClick={() => {
+                    setQuestion(topic.question);
+                    scrollToSection('home');
+                    window.setTimeout(() => questionInput.current?.focus(), 450);
+                  }}
+                  className="focus-ring group flex items-center gap-3 rounded-2xl border border-border bg-card px-4 py-4 text-left transition-all hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-md"
                   data-testid={`button-topic-${topic.id}`}
                 >
-                  <topic.icon className="size-4 shrink-0 text-[#aec2bb] transition-colors group-hover:text-secondary" aria-hidden="true" />
-                  <span className="min-w-0 flex-1 text-sm text-[#f3f1e7]">{topic.label}</span>
-                  <ArrowUpRight className="size-3.5 shrink-0 text-[#789194] transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-secondary" aria-hidden="true" />
+                  <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-[#e7f0ed] text-primary">
+                    <topic.icon className="size-4" aria-hidden="true" />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-sm font-semibold text-primary">{topic.label}</span>
+                    <span className="mt-0.5 block text-xs text-muted-foreground">Ask the counter</span>
+                  </span>
+                  <ChevronRight className="size-4 text-muted-foreground transition-transform group-hover:translate-x-1" aria-hidden="true" />
                 </button>
               ))}
             </div>
           </div>
+        </section>
 
-          <div className="rounded-[24px] border border-[#ded7c6] bg-card p-5 sm:p-6 animate-rise-in [animation-delay:220ms]">
-            <div className="flex items-start gap-3">
-              <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-[#fff0dd] text-accent">
-                <ShieldCheck className="size-[18px]" aria-hidden="true" />
-              </div>
-              <div>
-                <h2 className="text-sm font-bold text-primary">When to ask a person</h2>
-                <p className="mt-2 text-xs leading-5 text-muted-foreground">
-                  A pharmacist can check your full medication list, allergies, and personal history — details this starter can’t see.
-                </p>
-              </div>
+        <section id="quiz" className="scroll-mt-28 border-t border-border py-12 sm:py-16">
+          <div className="grid gap-8 lg:grid-cols-[.7fr_1.3fr] lg:items-center">
+            <div>
+              <SectionEyebrow>Quiz</SectionEyebrow>
+              <h2 className="mt-3 font-serif text-[clamp(2.4rem,5vw,4.5rem)] font-semibold leading-none tracking-[-0.06em] text-primary">Practice what you know.</h2>
+              <p className="mt-4 max-w-md text-sm leading-6 text-muted-foreground">A quick local question to help you turn reading into recall.</p>
             </div>
-            <div className="mt-4 flex items-center gap-2 border-t border-border pt-4 text-[11px] font-semibold text-primary">
-              <CheckCircle2 className="size-3.5 text-[#67a774]" aria-hidden="true" />
-              Bring your medication list
+            <div className="rounded-[24px] border border-[#d9d2c1] bg-primary p-6 text-primary-foreground shadow-[0_18px_50px_hsl(191_38%_18%_/_0.12)] sm:p-8">
+              <div className="flex items-center justify-between">
+                <span className="rounded-full border border-[#547376] px-3 py-1 font-mono text-[10px] uppercase tracking-[0.16em] text-[#c7d5cf]">Question {quizQuestion + 1} of {quizQuestions.length}</span>
+                <Brain className="size-5 text-secondary" aria-hidden="true" />
+              </div>
+              <p className="mt-7 max-w-2xl font-serif text-2xl font-semibold leading-tight tracking-[-0.03em] sm:text-3xl">{quizQuestions[quizQuestion].question}</p>
+              {quizRevealed ? (
+                <div className="mt-6 rounded-2xl border border-[#547376] bg-[#294f55] p-4 text-sm leading-6 text-[#edf3f0]" data-testid="quiz-answer">
+                  <span className="font-bold text-secondary">Answer:</span> {quizQuestions[quizQuestion].answer}
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setQuizRevealed(true)}
+                  className="focus-ring mt-7 inline-flex items-center gap-2 rounded-xl bg-secondary px-4 py-3 text-sm font-bold text-primary transition-all hover:-translate-y-0.5 hover:bg-[#f2cd70]"
+                  data-testid="button-reveal-answer"
+                >
+                  Reveal answer
+                  <ChevronRight className="size-4" aria-hidden="true" />
+                </button>
+              )}
+              {quizRevealed && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setQuizQuestion((current) => (current + 1) % quizQuestions.length);
+                    setQuizRevealed(false);
+                  }}
+                  className="focus-ring mt-6 flex items-center gap-2 text-sm font-bold text-secondary transition-colors hover:text-white"
+                  data-testid="button-next-question"
+                >
+                  Next question
+                  <ChevronRight className="size-4" aria-hidden="true" />
+                </button>
+              )}
             </div>
           </div>
-        </aside>
+        </section>
+
+        <section id="study" className="scroll-mt-28 border-t border-border py-12 sm:py-16">
+          <div className="grid gap-8 lg:grid-cols-[1.3fr_.7fr] lg:items-center">
+            <div className="rounded-[24px] border border-border bg-card p-6 sm:p-8">
+              <div className="flex items-start gap-4">
+                <div className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-[#fff0dd] text-accent">
+                  <GraduationCap className="size-5" aria-hidden="true" />
+                </div>
+                <div>
+                  <SectionEyebrow>Study Mode</SectionEyebrow>
+                  <h2 className="mt-3 font-serif text-3xl font-semibold tracking-[-0.05em] text-primary">Small sessions add up.</h2>
+                  <p className="mt-3 max-w-xl text-sm leading-6 text-muted-foreground">Use the prompt below as a starting point for a focused five-minute review.</p>
+                </div>
+              </div>
+              <div className="mt-7 grid gap-3 sm:grid-cols-3">
+                {studyCards.map((card) => (
+                  <div key={card.title} className="rounded-2xl border border-border bg-background p-4">
+                    <card.icon className="size-4 text-primary" aria-hidden="true" />
+                    <h3 className="mt-5 text-sm font-bold text-primary">{card.title}</h3>
+                    <p className="mt-2 text-xs leading-5 text-muted-foreground">{card.description}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="rounded-[24px] border border-[#ded7c6] bg-[#f2ede0]/75 p-6">
+              <Info className="size-5 text-accent" aria-hidden="true" />
+              <h2 className="mt-5 text-base font-bold text-primary">Keep it educational</h2>
+              <p className="mt-2 text-sm leading-6 text-muted-foreground">This version uses a small local study library. Always use a pharmacist or clinician for personal medical advice.</p>
+            </div>
+          </div>
+        </section>
+
+        <div className="rounded-2xl border border-[#ded7c6] bg-[#f2ede0]/75 px-4 py-3.5 sm:px-5" data-testid="notice-educational">
+          <div className="flex items-start gap-3">
+            <Info className="mt-0.5 size-4 shrink-0 text-accent" aria-hidden="true" />
+            <p className="text-xs leading-5 text-muted-foreground">
+              <span className="font-semibold text-primary">A quick safety note:</span> Pharma Assistant shares educational information only. It isn’t a substitute for a pharmacist or clinician, especially for urgent or personal medical concerns.
+            </p>
+          </div>
+        </div>
       </main>
 
       <footer className="mx-auto flex w-full max-w-[1420px] flex-col gap-3 border-t border-border px-5 py-6 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between sm:px-8 lg:px-12">
-        <span>Made for the questions between appointments.</span>
+        <span>Made for the questions between study sessions.</span>
         <span className="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.15em]">
           <Clock3 className="size-3" aria-hidden="true" /> Starter library · v0.1
         </span>
@@ -285,6 +435,20 @@ type Topic = {
   icon: LucideIcon;
 };
 
+type SectionId = 'home' | 'drugs' | 'quiz' | 'study';
+
+type QuizQuestion = {
+  question: string;
+  answer: string;
+};
+
+const navItems: Array<{ id: SectionId; label: string; icon: LucideIcon }> = [
+  { id: 'home', label: 'Home', icon: HeartPulse },
+  { id: 'drugs', label: 'Drugs', icon: FlaskConical },
+  { id: 'quiz', label: 'Quiz', icon: Brain },
+  { id: 'study', label: 'Study', icon: BookOpen },
+];
+
 const starterPrompts = ['What is cetirizine?', 'How do I read a label?'];
 
 const popularTopics: Topic[] = [
@@ -292,8 +456,32 @@ const popularTopics: Topic[] = [
   { id: 'missed-dose', label: 'Missed a dose', question: 'What should I do if I missed a dose?', icon: Clock3 },
   { id: 'cold-allergy', label: 'Cold and allergy basics', question: 'What are the basics of cold and allergy medicine?', icon: FlaskConical },
   { id: 'medication-label', label: 'Reading a medication label', question: 'How do I read a medication label?', icon: BookOpen },
-  { id: 'drug-questions', label: 'Questions to ask a pharmacist', question: 'What questions should I ask a pharmacist?', icon: Activity },
 ];
+
+const quizQuestions: QuizQuestion[] = [
+  {
+    question: 'Which part of a medicine label tells you the amount of active ingredient in each tablet?',
+    answer: 'The strength, usually shown in milligrams (mg) or another unit next to the active ingredient.',
+  },
+  {
+    question: 'Why should you compare active ingredients instead of only comparing brand names?',
+    answer: 'Different brands can contain the same ingredient, and taking duplicates can lead to too much of a medicine.',
+  },
+  {
+    question: 'What is a useful first step when you miss a dose?',
+    answer: 'Check the medicine label or leaflet first, because the correct advice depends on the specific medicine.',
+  },
+];
+
+const studyCards: Array<{ title: string; description: string; icon: LucideIcon }> = [
+  { title: 'Read', description: 'Choose one drug topic and review the key terms.', icon: BookOpen },
+  { title: 'Recall', description: 'Close your notes and explain the idea in your own words.', icon: Brain },
+  { title: 'Check', description: 'Use Quiz Mode to see what you remember.', icon: CheckCircle2 },
+];
+
+function SectionEyebrow({ children }: { children: ReactNode }) {
+  return <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.2em] text-accent">{children}</p>;
+}
 
 function MessageBubble({ message }: { message: Message }) {
   const isUser = message.role === 'user';
