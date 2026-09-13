@@ -98,6 +98,12 @@ router.post("/pharma/ask", async (req, res) => {
       return;
     }
     if (hfToken) {
+      if (error instanceof Error && error.message.includes("status 403")) {
+        res.status(502).json({
+          error: "HF_TOKEN does not have permission to call Hugging Face Inference Providers. Please use a token with Inference Providers access.",
+        });
+        return;
+      }
       res.status(502).json({
         error: "Hugging Face Inference Providers could not answer right now. Please verify HF_TOKEN access and try again.",
       });
