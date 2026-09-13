@@ -40,14 +40,15 @@ async function askWithHuggingFace(token: string, messages: ChatMessage[]) {
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      model: "meta-llama/Llama-3.1-8B-Instruct",
+      model: "openai/gpt-oss-120b:fastest",
       messages,
       max_tokens: 1200,
     }),
   });
 
   if (!response.ok) {
-    throw new Error(`Hugging Face request failed with status ${response.status}`);
+    const errorBody = (await response.text()).slice(0, 300);
+    throw new Error(`Hugging Face request failed with status ${response.status}: ${errorBody}`);
   }
 
   const payload = (await response.json()) as ChatCompletionPayload;
@@ -61,19 +62,20 @@ router.post("/pharma/ask", async (req, res) => {
     return;
   }
 
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) {
-    req.log.error("OPENAI_API_KEY is not configured");
+  const hfToken = process.env.HF_TOKEN;
+  const openAIKey = process.env.OPENAI_API_KEY;
+  if (!hfToken && !openAIKey) {
+    req.log.error("No AI provider token is configured");
     res.status(503).json({ error: "The AI answer service is not configured yet." });
     return;
   }
 
   try {
     const messages = messagesFor(parsed.data.question);
-    const answer = apiKey.startsWith("hf_")
-      ? await askWithHuggingFace(apiKey, messages)
+    const answer = hfToken
+      ? await askWithHuggingFace(hfToken, messages)
       : (
-          await new OpenAI({ apiKey }).chat.completions.create({
+          await new OpenAI({ apiKey: openAIKey }).chat.completions.create({
             model: "gpt-5.4-mini",
             max_completion_tokens: 1200,
             messages,
@@ -93,6 +95,12 @@ router.post("/pharma/ask", async (req, res) => {
       typeof error === "object" && error !== null && "code" in error ? error.code : undefined;
     if (providerCode === "credit_balance_exhausted") {
       res.status(503).json({ error: "The AI provider account has no remaining credits. Please use a funded API key." });
+      return;
+    }
+    if (hfToken) {
+      res.status(502).json({
+        error: "Hugging Face Inference Providers could not answer right now. Please verify HF_TOKEN access and try again.",
+      });
       return;
     }
     res.status(502).json({ error: "The AI answer service is unavailable right now. Please try again." });
