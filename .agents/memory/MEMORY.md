@@ -1,0 +1,1 @@
+- [AI provider credentials](ai-provider-credentials.md) — authentication can succeed while account usage remains unavailable due to provider balance.
