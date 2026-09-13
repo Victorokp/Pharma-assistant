@@ -22,11 +22,14 @@ export const HealthCheckResponse = zod.object({
  */
 export const askPharmaAssistantBodyQuestionMax = 1000;
 
+export const askPharmaAssistantBodyContextMax = 12000;
+
 
 
 export const AskPharmaAssistantBody = zod.object({
   "question": zod.string().min(1).max(askPharmaAssistantBodyQuestionMax),
-  "mode": zod.enum(['ask', 'drug-profile']).optional()
+  "mode": zod.enum(['ask', 'drug-profile', 'study-session']).optional(),
+  "context": zod.string().max(askPharmaAssistantBodyContextMax).optional()
 })
 
 export const AskPharmaAssistantResponse = zod.object({

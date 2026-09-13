@@ -83,6 +83,10 @@ components:
           enum:
             - ask
             - drug-profile
+            - study-session
+        context:
+          type: string
+          maxLength: 12000
       required:
         - question
     PharmaAnswer:

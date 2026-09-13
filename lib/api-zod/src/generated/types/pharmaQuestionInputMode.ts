@@ -12,4 +12,5 @@ export type PharmaQuestionInputMode = typeof PharmaQuestionInputMode[keyof typeo
 export const PharmaQuestionInputMode = {
   ask: 'ask',
   'drug-profile': 'drug-profile',
+  'study-session': 'study-session',
 } as const;

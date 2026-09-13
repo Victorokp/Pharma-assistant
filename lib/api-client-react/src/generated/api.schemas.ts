@@ -15,6 +15,7 @@ export type PharmaQuestionInputMode = typeof PharmaQuestionInputMode[keyof typeo
 export const PharmaQuestionInputMode = {
   ask: 'ask',
   'drug-profile': 'drug-profile',
+  'study-session': 'study-session',
 } as const;
 
 export interface PharmaQuestionInput {
@@ -24,6 +25,8 @@ export interface PharmaQuestionInput {
      */
   question: string;
   mode?: PharmaQuestionInputMode;
+  /** @maxLength 12000 */
+  context?: string;
 }
 
 export interface PharmaAnswer {

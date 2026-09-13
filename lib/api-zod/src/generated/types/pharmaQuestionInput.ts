@@ -14,4 +14,6 @@ export interface PharmaQuestionInput {
      */
   question: string;
   mode?: PharmaQuestionInputMode;
+  /** @maxLength 12000 */
+  context?: string;
 }

@@ -36,6 +36,28 @@ Pharmacy Student Tip
 
 Keep each section concise. Explain technical language in plain terms. Do not provide individualized dosing, diagnosis, treatment recommendations, or personal medical advice. End with this exact disclaimer: "Educational use only: This profile is general information and is not a substitute for advice from a pharmacist or clinician."`;
 
+const studySystemPrompt = `You are Pharma Assistant's interactive Study Mode tutor for pharmacy students.
+
+Teach progressively instead of dumping a complete lesson. Start with fundamentals, use simple language, then increase complexity only when the student demonstrates understanding. Include pharmacy-specific applications and examples when appropriate. Keep the lesson focused on the requested subject and topic.
+
+The session state includes the student's previous answers and the last check question. Never reveal the answer to a check question before the student attempts it. When a check question is pending and the student has not answered, respond only by clarifying the current concept or repeating/rephrasing the question; do not continue past the checkpoint.
+
+Return only one valid JSON object with this exact shape and no markdown fences:
+{
+  "kind": "teaching" | "evaluation" | "complete",
+  "content": "The tutor message for this step.",
+  "checkQuestion": "One short understanding question, or null only when ending.",
+  "objectives": ["Learning objective 1"],
+  "keyTakeaways": ["A takeaway, used when ending or useful"],
+  "struggledAreas": ["Only areas the student struggled with"],
+  "topicsToReview": ["Topics to review at the end"],
+  "revisionSummary": "A short revision summary, used when ending."
+}
+
+For a start action, give 2–4 learning objectives, teach one small foundational step, and ask exactly one short check question. For an answer action, evaluate what was correct, incorrect, or missing, explain the correction, and then teach the next small step with one new check question. If the student struggles or asks for a different explanation, explain the same idea another way and use another example without giving away the pending answer. If the student understands, gradually increase difficulty. For an end action, return kind "complete" with key takeaways, struggled areas, topics to review, and a short revision summary.
+
+Do not diagnose, prescribe, or provide individualized treatment or dosing advice. Finish every complete response with this sentence in the content: "Educational use only: this tutor is not a substitute for advice from a pharmacist or clinician."`;
+
 type ChatMessage = {
   role: "system" | "user";
   content: string;
@@ -45,9 +67,25 @@ type ChatCompletionPayload = {
   choices?: Array<{ message?: { content?: string } }>;
 };
 
-const messagesFor = (question: string, mode: "ask" | "drug-profile" = "ask"): ChatMessage[] => [
-  { role: "system", content: mode === "drug-profile" ? drugProfileSystemPrompt : askSystemPrompt },
-  { role: "user", content: question },
+const messagesFor = (
+  question: string,
+  mode: "ask" | "drug-profile" | "study-session" = "ask",
+  context?: string,
+): ChatMessage[] => [
+  {
+    role: "system",
+    content: mode === "drug-profile"
+      ? drugProfileSystemPrompt
+      : mode === "study-session"
+        ? studySystemPrompt
+        : askSystemPrompt,
+  },
+  {
+    role: "user",
+    content: context
+      ? `${question}\n\nSESSION STATE:\n${context}`
+      : question,
+  },
 ];
 
 async function askWithHuggingFace(token: string, messages: ChatMessage[]) {
@@ -89,7 +127,7 @@ router.post("/pharma/ask", async (req, res) => {
   }
 
   try {
-    const messages = messagesFor(parsed.data.question, parsed.data.mode);
+    const messages = messagesFor(parsed.data.question, parsed.data.mode, parsed.data.context);
     const answer = hfToken
       ? await askWithHuggingFace(hfToken, messages)
       : (
