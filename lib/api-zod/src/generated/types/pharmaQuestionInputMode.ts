@@ -5,9 +5,6 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
-export interface HealthStatus {
-  status: string;
-}
 
 export type PharmaQuestionInputMode = typeof PharmaQuestionInputMode[keyof typeof PharmaQuestionInputMode];
 
@@ -16,21 +13,3 @@ export const PharmaQuestionInputMode = {
   ask: 'ask',
   'drug-profile': 'drug-profile',
 } as const;
-
-export interface PharmaQuestionInput {
-  /**
-     * @minLength 1
-     * @maxLength 1000
-     */
-  question: string;
-  mode?: PharmaQuestionInputMode;
-}
-
-export interface PharmaAnswer {
-  answer: string;
-}
-
-export interface PharmaError {
-  error: string;
-}
-

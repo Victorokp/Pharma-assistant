@@ -39,7 +39,12 @@ function Home() {
   const [activeSection, setActiveSection] = useState<SectionId>('home');
   const [quizQuestion, setQuizQuestion] = useState(0);
   const [quizRevealed, setQuizRevealed] = useState(false);
+  const [drugSearch, setDrugSearch] = useState('');
+  const [drugProfile, setDrugProfile] = useState<DrugProfile | null>(null);
+  const [isDrugSearching, setIsDrugSearching] = useState(false);
+  const [drugError, setDrugError] = useState('');
   const questionInput = useRef<HTMLTextAreaElement | null>(null);
+  const drugInput = useRef<HTMLInputElement | null>(null);
 
   const submitQuestion = async (rawQuestion: string) => {
     const trimmedQuestion = rawQuestion.trim();
@@ -84,9 +89,46 @@ function Home() {
     submitQuestion(question);
   };
 
+  const handleDrugSearch = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const trimmedDrug = drugSearch.trim();
+    if (!trimmedDrug || isDrugSearching) {
+      setDrugError('Enter a drug name to start a search.');
+      drugInput.current?.focus();
+      return;
+    }
+
+    setDrugError('');
+    setDrugProfile(null);
+    setIsDrugSearching(true);
+
+    try {
+      const answer = await askPharmaAssistant({
+        question: `Create a Drug Explorer profile for the drug named "${trimmedDrug}".`,
+        mode: 'drug-profile',
+      });
+      const profile = parseDrugProfile(answer.answer, trimmedDrug);
+      if (!profile.hasReliableContent) {
+        setDrugError(`I couldn't find a reliable educational profile for "${trimmedDrug}". Try checking the spelling or searching another drug.`);
+        return;
+      }
+      setDrugProfile(profile);
+    } catch {
+      setDrugError('I couldn’t generate this drug profile right now. Please check the drug name and try again.');
+    } finally {
+      setIsDrugSearching(false);
+    }
+  };
+
   const scrollToSection = (section: SectionId) => {
     setActiveSection(section);
     document.getElementById(section)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
+  const askFromDrugExplorer = (prompt: string) => {
+    setQuestion(prompt);
+    scrollToSection('home');
+    window.setTimeout(() => questionInput.current?.focus(), 450);
   };
 
   const startQuiz = () => {
@@ -301,38 +343,120 @@ function Home() {
           </div>
         </section>
 
-        <section id="drugs" className="scroll-mt-28 border-t border-border py-12 sm:py-16">
-          <SectionEyebrow>Drugs</SectionEyebrow>
+        <section id="drugs" className="scroll-mt-28 border-t border-border py-12 sm:py-16" data-testid="drug-explorer">
+          <SectionEyebrow>Drug Explorer</SectionEyebrow>
           <div className="mt-3 grid gap-8 lg:grid-cols-[.72fr_1.28fr] lg:items-end">
             <div>
-              <h2 className="font-serif text-[clamp(2.4rem,5vw,4.5rem)] font-semibold leading-none tracking-[-0.06em] text-primary">Start with the essentials.</h2>
-              <p className="mt-4 max-w-md text-sm leading-6 text-muted-foreground">Browse the topics in the starter library, then send one to the local answer desk.</p>
+              <h2 className="font-serif text-[clamp(2.4rem,5vw,4.5rem)] font-semibold leading-none tracking-[-0.06em] text-primary">Look up a drug.</h2>
+              <p className="mt-4 max-w-md text-sm leading-6 text-muted-foreground">Generate a focused, student-friendly profile with the same AI study assistant that powers Ask.</p>
             </div>
-            <div className="grid gap-3 sm:grid-cols-2">
-              {popularTopics.slice(0, 4).map((topic) => (
+            <div className="rounded-[24px] border border-[#d9d2c1] bg-card p-5 shadow-[0_18px_50px_hsl(191_38%_18%_/_0.07)] sm:p-6">
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.2em] text-accent">Search the library</p>
+                  <p className="mt-1 text-sm text-muted-foreground">Start with a generic or brand name</p>
+                </div>
+                <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-[#e7f0ed] text-primary">
+                  <FlaskConical className="size-5" aria-hidden="true" />
+                </div>
+              </div>
+              <form onSubmit={handleDrugSearch} className="mt-5 flex flex-col gap-2 sm:flex-row">
+                <input
+                  ref={drugInput}
+                  value={drugSearch}
+                  onChange={(event) => setDrugSearch(event.target.value)}
+                  placeholder="Search for a drug..."
+                  maxLength={100}
+                  className="focus-ring min-h-11 min-w-0 flex-1 rounded-xl border border-[#d9d2c1] bg-background px-4 text-sm text-primary placeholder:text-[#9d988c] focus:border-[#a7bcb4] focus:outline-none"
+                  data-testid="input-drug-search"
+                  aria-label="Search for a drug"
+                />
                 <button
-                  key={topic.id}
-                  type="button"
-                  onClick={() => {
-                    setQuestion(topic.question);
-                    scrollToSection('home');
-                    window.setTimeout(() => questionInput.current?.focus(), 450);
-                  }}
-                  className="focus-ring group flex items-center gap-3 rounded-2xl border border-border bg-card px-4 py-4 text-left transition-all hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-md"
-                  data-testid={`button-topic-${topic.id}`}
+                  type="submit"
+                  disabled={!drugSearch.trim() || isDrugSearching}
+                  className="focus-ring flex min-h-11 items-center justify-center gap-2 rounded-xl bg-primary px-5 text-sm font-bold text-primary-foreground transition-all hover:-translate-y-0.5 hover:bg-[#294f55] disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:translate-y-0"
+                  data-testid="button-drug-search"
                 >
-                  <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-[#e7f0ed] text-primary">
-                    <topic.icon className="size-4" aria-hidden="true" />
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block text-sm font-semibold text-primary">{topic.label}</span>
-                    <span className="mt-0.5 block text-xs text-muted-foreground">Ask the counter</span>
-                  </span>
-                  <ChevronRight className="size-4 text-muted-foreground transition-transform group-hover:translate-x-1" aria-hidden="true" />
+                  <Search className="size-4" aria-hidden="true" />
+                  Search
                 </button>
-              ))}
+              </form>
+              <p className="mt-3 text-[11px] leading-5 text-muted-foreground">Educational information only. Always verify clinical details with a trusted reference.</p>
             </div>
           </div>
+
+          {isDrugSearching && (
+            <div className="mt-8 flex items-center gap-3 rounded-[24px] border border-border bg-card px-5 py-5 text-sm text-primary sm:px-6" role="status" data-testid="status-drug-searching">
+              <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-secondary text-primary">
+                <Sparkles className="size-4 animate-pulse-soft" aria-hidden="true" />
+              </div>
+              <div>
+                <p className="font-semibold">Building a drug profile…</p>
+                <p className="mt-1 text-xs text-muted-foreground">Checking the requested sections and preparing a study-friendly summary.</p>
+              </div>
+            </div>
+          )}
+
+          {drugError && !isDrugSearching && (
+            <div className="mt-8 flex items-start gap-3 rounded-[24px] border border-[#e4b9a6] bg-[#fff4ed] px-5 py-5 text-sm text-primary sm:px-6" role="alert" data-testid="status-drug-error">
+              <Info className="mt-0.5 size-4 shrink-0 text-accent" aria-hidden="true" />
+              <div>
+                <p className="font-semibold">Drug profile unavailable</p>
+                <p className="mt-1 leading-6 text-muted-foreground">{drugError}</p>
+              </div>
+            </div>
+          )}
+
+          {drugProfile && !isDrugSearching && (
+            <article className="mt-8 rounded-[24px] border border-[#d9d2c1] bg-card shadow-[0_18px_50px_hsl(191_38%_18%_/_0.07)]" data-testid="drug-profile-result">
+              <div className="border-b border-border px-5 py-5 sm:px-7">
+                <SectionEyebrow>Educational drug profile</SectionEyebrow>
+                <h3 className="mt-2 font-serif text-3xl font-semibold tracking-[-0.05em] text-primary sm:text-4xl">{drugProfile.displayName}</h3>
+              </div>
+              <div className="grid gap-3 px-5 py-5 sm:grid-cols-2 sm:px-7 lg:grid-cols-3">
+                {drugProfile.sections.map((section) => (
+                  <section key={section.title} className="rounded-2xl border border-border bg-background p-4 sm:p-5">
+                    <h4 className="text-sm font-bold text-primary">{section.title}</h4>
+                    <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-muted-foreground">{section.content}</p>
+                  </section>
+                ))}
+              </div>
+              <div className="border-t border-border px-5 py-5 sm:px-7">
+                <div className="flex flex-col gap-2 sm:flex-row">
+                  <button
+                    type="button"
+                    onClick={() => askFromDrugExplorer(`Help me study ${drugProfile.displayName} in a focused five-minute session. Cover its class, mechanism, uses, cautions, and a memory aid.`)}
+                    className="focus-ring flex min-h-11 items-center justify-center gap-2 rounded-xl bg-primary px-4 text-sm font-bold text-primary-foreground transition-all hover:-translate-y-0.5 hover:bg-[#294f55]"
+                    data-testid="button-study-drug"
+                  >
+                    <BookOpen className="size-4" aria-hidden="true" />
+                    Study This Drug
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => askFromDrugExplorer(`Quiz me on ${drugProfile.displayName} with five pharmacy student questions, one at a time.`)}
+                    className="focus-ring flex min-h-11 items-center justify-center gap-2 rounded-xl border border-border bg-background px-4 text-sm font-bold text-primary transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:bg-muted"
+                    data-testid="button-quiz-drug"
+                  >
+                    <Brain className="size-4" aria-hidden="true" />
+                    Quiz Me
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => askFromDrugExplorer(`What else should I know about ${drugProfile.displayName} for pharmacy study?`)}
+                    className="focus-ring flex min-h-11 items-center justify-center gap-2 rounded-xl border border-border bg-background px-4 text-sm font-bold text-primary transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:bg-muted"
+                    data-testid="button-ask-more-drug"
+                  >
+                    <Send className="size-4" aria-hidden="true" />
+                    Ask More
+                  </button>
+                </div>
+                <p className="mt-4 text-xs leading-5 text-muted-foreground">
+                  <span className="font-semibold text-primary">Educational use only:</span> This profile is general information and is not a substitute for advice from a pharmacist or clinician.
+                </p>
+              </div>
+            </article>
+          )}
         </section>
 
         <section id="quiz" className="scroll-mt-28 border-t border-border py-12 sm:py-16">
@@ -439,6 +563,17 @@ type Message = {
   timestamp: string;
 };
 
+type DrugProfileSection = {
+  title: string;
+  content: string;
+};
+
+type DrugProfile = {
+  displayName: string;
+  sections: DrugProfileSection[];
+  hasReliableContent: boolean;
+};
+
 type Topic = {
   id: string;
   label: string;
@@ -489,6 +624,69 @@ const studyCards: Array<{ title: string; description: string; icon: LucideIcon }
   { title: 'Recall', description: 'Close your notes and explain the idea in your own words.', icon: Brain },
   { title: 'Check', description: 'Use Quiz Mode to see what you remember.', icon: CheckCircle2 },
 ];
+
+const drugProfileSectionTitles = [
+  'Generic name',
+  'Drug class',
+  'What it is',
+  'Mechanism of action',
+  'Common uses',
+  'Common adverse effects',
+  'Contraindications / important cautions',
+  'Important drug interactions',
+  'Pharmacokinetics',
+  'Pharmacy Student Tip',
+];
+
+function parseDrugProfile(answer: string, searchedName: string): DrugProfile {
+  const contentByTitle = new Map<string, string[]>();
+  let currentTitle: string | null = null;
+
+  for (const line of answer.split(/\r?\n/)) {
+    const normalizedLine = line
+      .trim()
+      .replace(/^#{1,6}\s*/, '')
+      .replace(/^\*{1,2}/, '')
+      .replace(/\*{1,2}$/, '')
+      .replace(/:$/, '')
+      .trim()
+      .toLowerCase();
+    const matchedTitle = drugProfileSectionTitles.find((title) => title.toLowerCase() === normalizedLine);
+
+    if (matchedTitle) {
+      currentTitle = matchedTitle;
+      contentByTitle.set(matchedTitle, []);
+      continue;
+    }
+
+    if (currentTitle) {
+      contentByTitle.get(currentTitle)?.push(line);
+    }
+  }
+
+  const sections = drugProfileSectionTitles.map((title) => {
+    const content = contentByTitle.get(title)?.join('\n').trim();
+    return {
+      title,
+      content: content || 'Information unavailable or uncertain.',
+    };
+  });
+  const genericName = sections.find((section) => section.title === 'Generic name')?.content;
+  const displayName = genericName && !isUnavailableProfileText(genericName)
+    ? genericName.split('\n')[0].replace(/^[-*]\s*/, '').trim()
+    : searchedName;
+  const hasReliableContent = sections.some((section) => !isUnavailableProfileText(section.content));
+
+  return { displayName, sections, hasReliableContent };
+}
+
+function isUnavailableProfileText(content: string) {
+  const normalized = content.toLowerCase();
+  return normalized.includes('information unavailable or uncertain')
+    || normalized.includes('unable to verify')
+    || normalized.includes('not enough reliable information')
+    || normalized.includes('not recognized');
+}
 
 function SectionEyebrow({ children }: { children: ReactNode }) {
   return <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.2em] text-accent">{children}</p>;

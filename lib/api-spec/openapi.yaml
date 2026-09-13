@@ -78,6 +78,11 @@ components:
           type: string
           minLength: 1
           maxLength: 1000
+        mode:
+          type: string
+          enum:
+            - ask
+            - drug-profile
       required:
         - question
     PharmaAnswer:

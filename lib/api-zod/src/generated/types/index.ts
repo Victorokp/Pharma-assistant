@@ -10,3 +10,4 @@ export * from './healthStatus';
 export * from './pharmaAnswer';
 export * from './pharmaError';
 export * from './pharmaQuestionInput';
+export * from './pharmaQuestionInputMode';

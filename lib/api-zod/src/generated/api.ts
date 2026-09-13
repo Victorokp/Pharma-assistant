@@ -25,7 +25,8 @@ export const askPharmaAssistantBodyQuestionMax = 1000;
 
 
 export const AskPharmaAssistantBody = zod.object({
-  "question": zod.string().min(1).max(askPharmaAssistantBodyQuestionMax)
+  "question": zod.string().min(1).max(askPharmaAssistantBodyQuestionMax),
+  "mode": zod.enum(['ask', 'drug-profile']).optional()
 })
 
 export const AskPharmaAssistantResponse = zod.object({

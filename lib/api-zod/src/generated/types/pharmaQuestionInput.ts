@@ -5,6 +5,7 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { PharmaQuestionInputMode } from './pharmaQuestionInputMode';
 
 export interface PharmaQuestionInput {
   /**
@@ -12,4 +13,5 @@ export interface PharmaQuestionInput {
      * @maxLength 1000
      */
   question: string;
+  mode?: PharmaQuestionInputMode;
 }
