@@ -84,6 +84,7 @@ components:
             - ask
             - drug-profile
             - study-session
+            - quiz-generation
         context:
           type: string
           maxLength: 12000

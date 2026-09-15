@@ -1,7 +1,14 @@
 import { type FormEvent, type ReactNode, useRef, useState } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { askPharmaAssistant } from '@workspace/api-client-react';
+import { ApiError, askPharmaAssistant } from '@workspace/api-client-react';
 import { ErrorBoundary } from '@/components/error-boundary';
+import StudyMode from '@/components/study-mode';
+import QuizMode from '@/components/quiz-mode';
+import ProgressDashboard from '@/components/progress-dashboard';
+import CurriculumBrowser from '@/components/curriculum-browser';
+import { composeCurriculumContext, type CurriculumHandoff } from '@/lib/curriculum';
+import { checkDrugName } from '@/lib/drug-name-checker';
+import { MathText } from '@/components/math-text';
 import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import NotFound from '@/pages/not-found';
@@ -21,6 +28,8 @@ import {
   Send,
   ShieldCheck,
   Sparkles,
+  TrendingUp,
+  LibraryBig,
   type LucideIcon,
 } from 'lucide-react';
 import {
@@ -37,12 +46,18 @@ function Home() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isThinking, setIsThinking] = useState(false);
   const [activeSection, setActiveSection] = useState<SectionId>('home');
-  const [quizQuestion, setQuizQuestion] = useState(0);
-  const [quizRevealed, setQuizRevealed] = useState(false);
+  // Topic handoffs: plain string from Quiz/Progress; richer payloads from the
+  // Curriculum browser (topic + course subject + context note).
+  const [studyPrefill, setStudyPrefill] = useState<TopicPrefill | null>(null);
+  const [quizPrefill, setQuizPrefill] = useState<TopicPrefill | null>(null);
   const [drugSearch, setDrugSearch] = useState('');
   const [drugProfile, setDrugProfile] = useState<DrugProfile | null>(null);
   const [isDrugSearching, setIsDrugSearching] = useState(false);
   const [drugError, setDrugError] = useState('');
+  // Smart-name checker: shown when the typed name isn't an exact match but is
+  // close to a known drug. Suggestions are never auto-applied — the student
+  // confirms the corrected name before any search happens.
+  const [drugSuggestions, setDrugSuggestions] = useState<DrugSuggestions | null>(null);
   const questionInput = useRef<HTMLTextAreaElement | null>(null);
   const drugInput = useRef<HTMLInputElement | null>(null);
 
@@ -75,7 +90,12 @@ function Home() {
         {
           id: Date.now() + 1,
           role: 'assistant',
-          text: error instanceof Error ? error.message : 'The AI answer service is unavailable right now. Please try again.',
+          text:
+            error instanceof ApiError && (error.status === 0 || error.status >= 500)
+              ? 'The AI answer service is unreachable right now — check your connection and try again.'
+              : error instanceof Error
+                ? error.message
+                : 'The AI answer service is unavailable right now. Please try again.',
           timestamp: getTimeLabel(),
         },
       ]);
@@ -89,10 +109,9 @@ function Home() {
     submitQuestion(question);
   };
 
-  const handleDrugSearch = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const trimmedDrug = drugSearch.trim();
-    if (!trimmedDrug || isDrugSearching) {
+  const runDrugSearch = async (rawDrug: string) => {
+    const trimmedDrug = rawDrug.trim();
+    if (!trimmedDrug) {
       setDrugError('Enter a drug name to start a search.');
       drugInput.current?.focus();
       return;
@@ -100,6 +119,7 @@ function Home() {
 
     setDrugError('');
     setDrugProfile(null);
+    setDrugSuggestions(null);
     setIsDrugSearching(true);
 
     try {
@@ -120,6 +140,39 @@ function Home() {
     }
   };
 
+  const handleDrugSearch = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const trimmedDrug = drugSearch.trim();
+    if (!trimmedDrug || isDrugSearching) {
+      setDrugError('Enter a drug name to start a search.');
+      drugInput.current?.focus();
+      return;
+    }
+
+    // Smart spelling gate — runs locally, before any AI/API call. Exact
+    // matches pass straight through with unchanged behavior; a confidently
+    // close name offers one suggestion; several plausible names ask the
+    // student to choose; nothing close falls through to the normal search.
+    const nameCheck = checkDrugName(trimmedDrug);
+    if (!nameCheck.exact) {
+      if (nameCheck.suggestion) {
+        setDrugSuggestions({ query: trimmedDrug, suggestion: nameCheck.suggestion.name, choices: [] });
+        return;
+      }
+      if (nameCheck.choices.length > 0) {
+        setDrugSuggestions({ query: trimmedDrug, suggestion: null, choices: nameCheck.choices.map((choice) => choice.name) });
+        return;
+      }
+    }
+
+    runDrugSearch(trimmedDrug);
+  };
+
+  const handleSuggestionSearch = (name: string) => {
+    setDrugSearch(name);
+    runDrugSearch(name);
+  };
+
   const scrollToSection = (section: SectionId) => {
     setActiveSection(section);
     document.getElementById(section)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -132,12 +185,46 @@ function Home() {
   };
 
   const startQuiz = () => {
-    setQuizRevealed(false);
     scrollToSection('quiz');
   };
 
   const startStudyMode = () => {
     scrollToSection('study');
+  };
+
+  const handleStudyWeakAreas = (weakTopics: string[]) => {
+    if (weakTopics.length > 0) {
+      setStudyPrefill({ topic: weakTopics[0] });
+    }
+    scrollToSection('study');
+  };
+
+  const handleProgressStudyTopic = (topic: string) => {
+    setStudyPrefill({ topic });
+    scrollToSection('study');
+  };
+
+  const handleProgressQuizTopic = (topic: string) => {
+    setQuizPrefill({ topic });
+    scrollToSection('quiz');
+  };
+
+  const handleCurriculumStudy = (handoff: CurriculumHandoff) => {
+    setStudyPrefill({
+      topic: handoff.topic,
+      subject: handoff.courseCode,
+      context: composeCurriculumContext(handoff),
+    });
+    scrollToSection('study');
+  };
+
+  const handleCurriculumQuiz = (handoff: CurriculumHandoff) => {
+    setQuizPrefill({
+      topic: handoff.topic,
+      subject: handoff.courseCode,
+      context: composeCurriculumContext(handoff),
+    });
+    scrollToSection('quiz');
   };
 
   const handleReset = () => {
@@ -397,6 +484,82 @@ function Home() {
             </div>
           )}
 
+          {drugSuggestions && !isDrugSearching && (
+            <div className="mt-8 rounded-[24px] border border-[#d9d2c1] bg-card px-5 py-5 sm:px-6" role="status" data-testid="drug-suggestions">
+              {drugSuggestions.suggestion ? (
+                <>
+                  <div className="flex items-start gap-3">
+                    <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-secondary text-primary">
+                      <Search className="size-4" aria-hidden="true" />
+                    </div>
+                    <div>
+                      <p className="font-semibold text-primary">Did you mean {drugSuggestions.suggestion}?</p>
+                      <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                        We couldn't find an exact match for “{drugSuggestions.query}”. Confirm the name to see its profile.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+                    <button
+                      type="button"
+                      onClick={() => handleSuggestionSearch(drugSuggestions.suggestion!)}
+                      className="focus-ring flex min-h-11 items-center justify-center gap-2 rounded-xl bg-primary px-4 text-sm font-bold text-primary-foreground transition-all hover:-translate-y-0.5 hover:bg-[#294f55]"
+                      data-testid="button-drug-suggestion"
+                    >
+                      <Search className="size-4" aria-hidden="true" />
+                      Search {drugSuggestions.suggestion}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const original = drugSuggestions.query;
+                        setDrugSuggestions(null);
+                        // The dictionary only suggests spellings — it must never
+                        // restrict what can be searched. Search the student's
+                        // original text (the AI backend remains the source of
+                        // truth for every drug, listed here or not).
+                        runDrugSearch(original);
+                      }}
+                      className="focus-ring flex min-h-11 items-center justify-center rounded-xl border border-border bg-background px-4 text-sm font-bold text-primary transition-all hover:border-primary/40 hover:bg-muted"
+                      data-testid="button-drug-suggestion-dismiss"
+                    >
+                      Keep my spelling
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="flex items-start gap-3">
+                    <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-secondary text-primary">
+                      <Search className="size-4" aria-hidden="true" />
+                    </div>
+                    <div>
+                      <p className="font-semibold text-primary">Which drug did you mean?</p>
+                      <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                        A few known drugs are close to “{drugSuggestions.query}” — pick the one you want.
+                      </p>
+                    </div>
+                  </div>
+                  <ul className="mt-4 flex flex-col gap-2">
+                    {drugSuggestions.choices.map((choice) => (
+                      <li key={choice}>
+                        <button
+                          type="button"
+                          onClick={() => handleSuggestionSearch(choice)}
+                          className="focus-ring flex min-h-11 w-full items-center justify-between rounded-xl border border-border bg-background px-4 text-sm font-semibold text-primary transition-all hover:border-primary/40 hover:bg-muted"
+                          data-testid={`button-drug-choice-${choice.toLowerCase().replace(/\s+/g, '-')}`}
+                        >
+                          <span className="truncate">{choice}</span>
+                          <ChevronRight className="ml-2 size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
+            </div>
+          )}
+
           {drugError && !isDrugSearching && (
             <div className="mt-8 flex items-start gap-3 rounded-[24px] border border-[#e4b9a6] bg-[#fff4ed] px-5 py-5 text-sm text-primary sm:px-6" role="alert" data-testid="status-drug-error">
               <Info className="mt-0.5 size-4 shrink-0 text-accent" aria-hidden="true" />
@@ -417,7 +580,9 @@ function Home() {
                 {drugProfile.sections.map((section) => (
                   <section key={section.title} className="rounded-2xl border border-border bg-background p-4 sm:p-5">
                     <h4 className="text-sm font-bold text-primary">{section.title}</h4>
-                    <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-muted-foreground">{section.content}</p>
+                    <div className="math-text-host mt-3 text-sm leading-6 text-muted-foreground">
+                      <MathText content={section.content} />
+                    </div>
                   </section>
                 ))}
               </div>
@@ -459,79 +624,54 @@ function Home() {
           )}
         </section>
 
-        <section id="quiz" className="scroll-mt-28 border-t border-border py-12 sm:py-16">
-          <div className="grid gap-8 lg:grid-cols-[.7fr_1.3fr] lg:items-center">
+        <section id="quiz" className="scroll-mt-28 border-t border-border py-12 sm:py-16" data-testid="quiz-mode-section">
+          <div className="grid gap-8 lg:grid-cols-[.7fr_1.3fr] lg:items-start">
             <div>
               <SectionEyebrow>Quiz</SectionEyebrow>
               <h2 className="mt-3 font-serif text-[clamp(2.4rem,5vw,4.5rem)] font-semibold leading-none tracking-[-0.06em] text-primary">Practice what you know.</h2>
-              <p className="mt-4 max-w-md text-sm leading-6 text-muted-foreground">A quick local question to help you turn reading into recall.</p>
+              <p className="mt-4 max-w-md text-sm leading-6 text-muted-foreground">AI-generated multiple-choice questions with instant feedback and a full wrap-up at the end.</p>
             </div>
-            <div className="rounded-[24px] border border-[#d9d2c1] bg-primary p-6 text-primary-foreground shadow-[0_18px_50px_hsl(191_38%_18%_/_0.12)] sm:p-8">
-              <div className="flex items-center justify-between">
-                <span className="rounded-full border border-[#547376] px-3 py-1 font-mono text-[10px] uppercase tracking-[0.16em] text-[#c7d5cf]">Question {quizQuestion + 1} of {quizQuestions.length}</span>
-                <Brain className="size-5 text-secondary" aria-hidden="true" />
-              </div>
-              <p className="mt-7 max-w-2xl font-serif text-2xl font-semibold leading-tight tracking-[-0.03em] sm:text-3xl">{quizQuestions[quizQuestion].question}</p>
-              {quizRevealed ? (
-                <div className="mt-6 rounded-2xl border border-[#547376] bg-[#294f55] p-4 text-sm leading-6 text-[#edf3f0]" data-testid="quiz-answer">
-                  <span className="font-bold text-secondary">Answer:</span> {quizQuestions[quizQuestion].answer}
-                </div>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => setQuizRevealed(true)}
-                  className="focus-ring mt-7 inline-flex items-center gap-2 rounded-xl bg-secondary px-4 py-3 text-sm font-bold text-primary transition-all hover:-translate-y-0.5 hover:bg-[#f2cd70]"
-                  data-testid="button-reveal-answer"
-                >
-                  Reveal answer
-                  <ChevronRight className="size-4" aria-hidden="true" />
-                </button>
-              )}
-              {quizRevealed && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setQuizQuestion((current) => (current + 1) % quizQuestions.length);
-                    setQuizRevealed(false);
-                  }}
-                  className="focus-ring mt-6 flex items-center gap-2 text-sm font-bold text-secondary transition-colors hover:text-white"
-                  data-testid="button-next-question"
-                >
-                  Next question
-                  <ChevronRight className="size-4" aria-hidden="true" />
-                </button>
-              )}
-            </div>
+            <QuizMode
+              onStudyWeakAreas={handleStudyWeakAreas}
+              prefillTopic={quizPrefill?.topic ?? null}
+              prefillContext={quizPrefill?.context ?? null}
+            />
           </div>
         </section>
 
-        <section id="study" className="scroll-mt-28 border-t border-border py-12 sm:py-16">
-          <div className="grid gap-8 lg:grid-cols-[1.3fr_.7fr] lg:items-center">
-            <div className="rounded-[24px] border border-border bg-card p-6 sm:p-8">
-              <div className="flex items-start gap-4">
-                <div className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-[#fff0dd] text-accent">
-                  <GraduationCap className="size-5" aria-hidden="true" />
-                </div>
-                <div>
-                  <SectionEyebrow>Study Mode</SectionEyebrow>
-                  <h2 className="mt-3 font-serif text-3xl font-semibold tracking-[-0.05em] text-primary">Small sessions add up.</h2>
-                  <p className="mt-3 max-w-xl text-sm leading-6 text-muted-foreground">Use the prompt below as a starting point for a focused five-minute review.</p>
-                </div>
-              </div>
-              <div className="mt-7 grid gap-3 sm:grid-cols-3">
-                {studyCards.map((card) => (
-                  <div key={card.title} className="rounded-2xl border border-border bg-background p-4">
-                    <card.icon className="size-4 text-primary" aria-hidden="true" />
-                    <h3 className="mt-5 text-sm font-bold text-primary">{card.title}</h3>
-                    <p className="mt-2 text-xs leading-5 text-muted-foreground">{card.description}</p>
-                  </div>
-                ))}
-              </div>
+        <section id="progress" className="scroll-mt-28 border-t border-border py-12 sm:py-16" data-testid="progress-section">
+          <div className="grid gap-8 lg:grid-cols-[.7fr_1.3fr] lg:items-start">
+            <div>
+              <SectionEyebrow>Progress</SectionEyebrow>
+              <h2 className="mt-3 font-serif text-[clamp(2.4rem,5vw,4.5rem)] font-semibold leading-none tracking-[-0.06em] text-primary">See how far you've come.</h2>
+              <p className="mt-4 max-w-md text-sm leading-6 text-muted-foreground">Quizzes feed this dashboard automatically. Study your weak areas, then quiz again to watch the bars move.</p>
             </div>
+            <ProgressDashboard onStudyTopic={handleProgressStudyTopic} onQuizTopic={handleProgressQuizTopic} />
+          </div>
+        </section>
+
+        <section id="curriculum" className="scroll-mt-28 border-t border-border py-12 sm:py-16" data-testid="curriculum-section">
+          <div className="grid gap-8 lg:grid-cols-[.7fr_1.3fr] lg:items-start">
+            <div>
+              <SectionEyebrow>Curriculum</SectionEyebrow>
+              <h2 className="mt-3 font-serif text-[clamp(2.4rem,5vw,4.5rem)] font-semibold leading-none tracking-[-0.06em] text-primary">Know the map.</h2>
+              <p className="mt-4 max-w-md text-sm leading-6 text-muted-foreground">Every course, topic, and subtopic in one place — the structure your studying is built on.</p>
+            </div>
+            <CurriculumBrowser onStudyTopic={handleCurriculumStudy} onQuizTopic={handleCurriculumQuiz} />
+          </div>
+        </section>
+
+        <section id="study" className="scroll-mt-28 border-t border-border py-12 sm:py-16" data-testid="study-mode">
+          <div className="grid gap-8 lg:grid-cols-[1.3fr_.7fr] lg:items-start">
+            <StudyMode
+              prefillTopic={studyPrefill?.topic ?? null}
+              prefillSubject={studyPrefill?.subject ?? null}
+              prefillContext={studyPrefill?.context ?? null}
+            />
             <div className="rounded-[24px] border border-[#ded7c6] bg-[#f2ede0]/75 p-6">
               <Info className="size-5 text-accent" aria-hidden="true" />
               <h2 className="mt-5 text-base font-bold text-primary">Keep it educational</h2>
-              <p className="mt-2 text-sm leading-6 text-muted-foreground">This version uses a small local study library. Always use a pharmacist or clinician for personal medical advice.</p>
+              <p className="mt-2 text-sm leading-6 text-muted-foreground">Study Mode teaches progressively and checks your understanding as you go. Always use a pharmacist or clinician for personal medical advice.</p>
             </div>
           </div>
         </section>
@@ -563,6 +703,15 @@ type Message = {
   timestamp: string;
 };
 
+/** What one feature hands to Study Mode / Quiz Mode as a starting point. */
+type TopicPrefill = {
+  topic: string;
+  /** Course code, from Curriculum handoffs only. */
+  subject?: string | null;
+  /** Course + parent-topic context note, from Curriculum handoffs only. */
+  context?: string | null;
+};
+
 type DrugProfileSection = {
   title: string;
   content: string;
@@ -574,24 +723,30 @@ type DrugProfile = {
   hasReliableContent: boolean;
 };
 
+/** Spelling-checker state for Drug Explorer; never auto-applied. */
+type DrugSuggestions = {
+  /** The raw, unconfirmed input the student typed. */
+  query: string;
+  /** One confidently-close name, for the "Did you mean …?" state. */
+  suggestion: string | null;
+  /** Several plausible names, for the "Which drug did you mean?" state. */
+  choices: string[];
+};
+
 type Topic = {
   id: string;
   label: string;
   question: string;
   icon: LucideIcon;
-};
+};type SectionId = 'home' | 'drugs' | 'quiz' | 'progress' | 'curriculum' | 'study';
 
-type SectionId = 'home' | 'drugs' | 'quiz' | 'study';
-
-type QuizQuestion = {
-  question: string;
-  answer: string;
-};
 
 const navItems: Array<{ id: SectionId; label: string; icon: LucideIcon }> = [
   { id: 'home', label: 'Home', icon: HeartPulse },
   { id: 'drugs', label: 'Drugs', icon: FlaskConical },
   { id: 'quiz', label: 'Quiz', icon: Brain },
+  { id: 'progress', label: 'Progress', icon: TrendingUp },
+  { id: 'curriculum', label: 'Courses', icon: LibraryBig },
   { id: 'study', label: 'Study', icon: BookOpen },
 ];
 
@@ -602,27 +757,6 @@ const popularTopics: Topic[] = [
   { id: 'missed-dose', label: 'Missed a dose', question: 'What should I do if I missed a dose?', icon: Clock3 },
   { id: 'cold-allergy', label: 'Cold and allergy basics', question: 'What are the basics of cold and allergy medicine?', icon: FlaskConical },
   { id: 'medication-label', label: 'Reading a medication label', question: 'How do I read a medication label?', icon: BookOpen },
-];
-
-const quizQuestions: QuizQuestion[] = [
-  {
-    question: 'Which part of a medicine label tells you the amount of active ingredient in each tablet?',
-    answer: 'The strength, usually shown in milligrams (mg) or another unit next to the active ingredient.',
-  },
-  {
-    question: 'Why should you compare active ingredients instead of only comparing brand names?',
-    answer: 'Different brands can contain the same ingredient, and taking duplicates can lead to too much of a medicine.',
-  },
-  {
-    question: 'What is a useful first step when you miss a dose?',
-    answer: 'Check the medicine label or leaflet first, because the correct advice depends on the specific medicine.',
-  },
-];
-
-const studyCards: Array<{ title: string; description: string; icon: LucideIcon }> = [
-  { title: 'Read', description: 'Choose one drug topic and review the key terms.', icon: BookOpen },
-  { title: 'Recall', description: 'Close your notes and explain the idea in your own words.', icon: Brain },
-  { title: 'Check', description: 'Use Quiz Mode to see what you remember.', icon: CheckCircle2 },
 ];
 
 const drugProfileSectionTitles = [
@@ -702,9 +836,9 @@ function MessageBubble({ message }: { message: Message }) {
         </div>
       )}
       <div className={`max-w-[82%] ${isUser ? 'items-end' : ''}`}>
-        <div className={`whitespace-pre-wrap rounded-2xl px-4 py-3 text-sm leading-6 ${isUser ? 'rounded-tr-sm bg-primary text-primary-foreground' : 'rounded-tl-sm border border-[#dce6e1] bg-[#edf3f0] text-primary'}`}>
-          {message.text}
-        </div>
+      <div className={`rounded-2xl px-4 py-3 text-sm leading-6 ${isUser ? 'whitespace-pre-wrap rounded-tr-sm bg-primary text-primary-foreground' : 'math-text-host rounded-tl-sm border border-[#dce6e1] bg-[#edf3f0] text-primary'}`}>
+        {isUser ? message.text : <MathText content={message.text} />}
+      </div>
         <div className={`mt-1.5 font-mono text-[9px] uppercase tracking-[0.14em] text-muted-foreground ${isUser ? 'text-right' : ''}`}>
           {isUser ? 'You' : 'AI-generated educational answer'} · {message.timestamp}
         </div>

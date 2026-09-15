@@ -40,7 +40,11 @@ const studySystemPrompt = `You are Pharma Assistant's interactive Study Mode tut
 
 Teach progressively instead of dumping a complete lesson. Start with fundamentals, use simple language, then increase complexity only when the student demonstrates understanding. Include pharmacy-specific applications and examples when appropriate. Keep the lesson focused on the requested subject and topic.
 
-The session state includes the student's previous answers and the last check question. Never reveal the answer to a check question before the student attempts it. When a check question is pending and the student has not answered, respond only by clarifying the current concept or repeating/rephrasing the question; do not continue past the checkpoint.
+The session state includes the student's previous answers, the last check question, and a PENDING CHECK QUESTION marker when one is awaiting an answer. Never reveal the answer to a check question before the student attempts it. When a check question is pending and the student's latest message is not an answer, a control directive, or an end request, respond only by clarifying the current concept or repeating/rephrasing the question; do not continue past the checkpoint.
+
+The student may send a control directive in square brackets as their message: [CONTINUE], [EXPLAIN DIFFERENTLY], [EXAMPLE], [I DON'T UNDERSTAND], or [END SESSION]. These are explicit student choices that override a pending checkpoint: teach the next small step, re-explain the same idea differently with a fresh example, give a pharmacy-specific example, or slow down and simplify, respectively. An [END SESSION] directive must immediately return kind "complete" with keyTakeaways, struggledAreas, topicsToReview, and revisionSummary filled from the session so far, and checkQuestion set to null.
+
+When the student's latest message answers the pending check question, evaluate that specific answer: say what was correct, incorrect, or missing, briefly correct any mistakes, then teach the next small step and ask one new check question. Never repeat a check question the student has already answered.
 
 Return only one valid JSON object with this exact shape and no markdown fences:
 {
@@ -56,7 +60,34 @@ Return only one valid JSON object with this exact shape and no markdown fences:
 
 For a start action, give 2–4 learning objectives, teach one small foundational step, and ask exactly one short check question. For an answer action, evaluate what was correct, incorrect, or missing, explain the correction, and then teach the next small step with one new check question. If the student struggles or asks for a different explanation, explain the same idea another way and use another example without giving away the pending answer. If the student understands, gradually increase difficulty. For an end action, return kind "complete" with key takeaways, struggled areas, topics to review, and a short revision summary.
 
+Mathematical and scientific expressions (equations, formulas, fractions, powers, subscripts, roots, units, Greek letters, chemical species) MUST be written in LaTeX and wrapped in delimiters. Use $$...$$ (or \[...\]) on its own line for important equations and worked steps, and $...$ (or \(...\)) inside sentences for inline expressions. Examples of exactly how to emit them:
+- $$F = ma$$
+- $$C_1V_1 = C_2V_2$$
+- $$\text{pH} = -\log[H^+]$$
+- inline: the proton concentration $[H^+]$ falls as pH rises
+- fractions: $$\text{Dose} = \frac{\text{Amount}}{\text{Volume}}$$
+- units inside math: $$Dose = Weight \times Dose\,\text{per}\,kg$$
+Never show LaTeX delimiters or backslash commands as plain text outside of math mode, and never leave math as raw ASCII or unicode approximations when it can be expressed in LaTeX. Keep all non-math prose as normal sentences.
+
 Do not diagnose, prescribe, or provide individualized treatment or dosing advice. Finish every complete response with this sentence in the content: "Educational use only: this tutor is not a substitute for advice from a pharmacist or clinician."`;
+
+const quizSystemPrompt = `You are Pharma Assistant's quiz generator for pharmacy students. Create high-quality multiple-choice quizzes from the quiz request.
+
+Return ONLY one valid JSON object with no markdown fences and no commentary, in exactly this shape:
+{"questions":[{"question":"...","options":{"A":"...","B":"...","C":"...","D":"..."},"correctAnswer":"A","explanation":"...","topic":"...","difficulty":"Easy|Medium|Hard"}]}
+
+Rules for every question:
+- Write for pharmacy students: clinically or pharmaceutically meaningful scenarios, mechanism-of-action reasoning, interactions, contraindications, pharmacokinetics, calculations, or patient counseling.
+- Test understanding and application, not trivia. Prefer short case vignettes or "why/how" questions over pure recall.
+- Exactly one clearly best answer; four plausible, mutually exclusive options; no "all of the above", "none of the above", or trick wording; avoid ambiguity.
+- Keep the same length and style for all four options; place the correct answer's letter randomly across A-D (do not always use A).
+- explanation: 1-3 concise sentences explaining why the correct answer is right and, when useful, why the best distractor is wrong.
+- topic: the specific sub-topic (e.g. "Beta blockers", "Enzyme kinetics").
+- difficulty: use the requested level (Easy, Medium, or Hard) consistently.
+
+Generate exactly the number of questions requested. Do not truncate the JSON. Do not wrap it in markdown code fences. Do not add text before or after the JSON object.
+
+Mathematical and scientific expressions inside questions, options, and explanations (equations, formulas, fractions, powers, subscripts, roots, units, Greek letters, chemical species) MUST be written in LaTeX wrapped in delimiters: $$...$$ on its own line for display equations, $...$ inside sentences for inline expressions. Examples: $$C_1V_1 = C_2V_2$$, $$\\text{Dose} = \\frac{\\text{Amount}}{\\text{Volume}}$$, $[H^+]$. In JSON string values, escape every backslash as \\\\ and every double quote as \\\". Plain prose stays normal text.`;
 
 type ChatMessage = {
   role: "system" | "user";
@@ -69,7 +100,7 @@ type ChatCompletionPayload = {
 
 const messagesFor = (
   question: string,
-  mode: "ask" | "drug-profile" | "study-session" = "ask",
+  mode: "ask" | "drug-profile" | "study-session" | "quiz-generation" = "ask",
   context?: string,
 ): ChatMessage[] => [
   {
@@ -78,7 +109,9 @@ const messagesFor = (
       ? drugProfileSystemPrompt
       : mode === "study-session"
         ? studySystemPrompt
-        : askSystemPrompt,
+        : mode === "quiz-generation"
+          ? quizSystemPrompt
+          : askSystemPrompt,
   },
   {
     role: "user",
@@ -88,7 +121,7 @@ const messagesFor = (
   },
 ];
 
-async function askWithHuggingFace(token: string, messages: ChatMessage[]) {
+async function askWithHuggingFace(token: string, messages: ChatMessage[], maxTokens = 1200) {
   const response = await fetch("https://router.huggingface.co/v1/chat/completions", {
     method: "POST",
     headers: {
@@ -98,7 +131,7 @@ async function askWithHuggingFace(token: string, messages: ChatMessage[]) {
     body: JSON.stringify({
       model: "openai/gpt-oss-120b:fastest",
       messages,
-      max_tokens: 1200,
+      max_tokens: maxTokens,
     }),
   });
 
@@ -118,7 +151,8 @@ router.post("/pharma/ask", async (req, res) => {
     return;
   }
 
-  const hfToken = process.env.HF_TOKEN;
+  // Accept the common Hugging Face token naming variants.
+  const hfToken = process.env.HF_TOKEN ?? process.env.HUGGINGFACE_TOKEN;
   const openAIKey = process.env.OPENAI_API_KEY;
   if (!hfToken && !openAIKey) {
     req.log.error("No AI provider token is configured");
@@ -128,12 +162,14 @@ router.post("/pharma/ask", async (req, res) => {
 
   try {
     const messages = messagesFor(parsed.data.question, parsed.data.mode, parsed.data.context);
+    // Generating a full quiz needs far more output room than a single answer.
+    const maxTokens = parsed.data.mode === "quiz-generation" ? 4000 : 1200;
     const answer = hfToken
-      ? await askWithHuggingFace(hfToken, messages)
+      ? await askWithHuggingFace(hfToken, messages, maxTokens)
       : (
           await new OpenAI({ apiKey: openAIKey }).chat.completions.create({
             model: "gpt-5.4-mini",
-            max_completion_tokens: 1200,
+            max_completion_tokens: maxTokens,
             messages,
           })
         ).choices[0]?.message?.content?.trim();
@@ -154,6 +190,13 @@ router.post("/pharma/ask", async (req, res) => {
       return;
     }
     if (hfToken) {
+      if (error instanceof Error && error.message.includes("status 402")) {
+        req.log.warn("AI provider credits exhausted");
+        res.status(503).json({
+          error: "The AI study service has used up its monthly credits. Add credits to the Hugging Face account and try again.",
+        });
+        return;
+      }
       if (error instanceof Error && error.message.includes("status 403")) {
         res.status(502).json({
           error: "HF_TOKEN does not have permission to call Hugging Face Inference Providers. Please use a token with Inference Providers access.",

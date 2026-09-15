@@ -13,4 +13,5 @@ export const PharmaQuestionInputMode = {
   ask: 'ask',
   'drug-profile': 'drug-profile',
   'study-session': 'study-session',
+  'quiz-generation': 'quiz-generation',
 } as const;

@@ -1,4 +1,5 @@
 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,600;9..144,700&display=swap');
+@import 'katex/dist/katex.min.css';
 @import 'tailwindcss';
 @import 'tw-animate-css';
 @plugin "@tailwindcss/typography";
@@ -478,6 +479,148 @@
   opacity: .035;
   z-index: 40;
   background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 160 160' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.42'/%3E%3C/svg%3E");
+}
+
+/* ---- Math rendering (KaTeX) ------------------------------------------- */
+.math-text .katex-display {
+  margin: 0.85rem 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-bottom: 2px;
+}
+
+.math-text .katex {
+  font-size: 1.02em;
+}
+
+.math-inline .katex {
+  white-space: nowrap;
+}
+
+.math-block {
+  display: block;
+  text-align: center;
+}
+
+.math-fallback {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  background: hsl(var(--muted));
+  border-radius: 6px;
+  padding: 0 4px;
+}
+
+/* Small screens: keep equations readable without forcing page-wide overflow. */
+@media (max-width: 640px) {
+  .math-text .katex {
+    font-size: 0.98em;
+  }
+
+  .math-text .katex-display > .katex {
+    white-space: normal;
+  }
+}
+
+/* ---- Markdown typography (AI responses) -------------------------------- */
+/* Scoped to .math-text (the shared renderer for AI content) so it only
+   affects AI-generated prose, never app chrome. */
+.math-text > p,
+.math-text p {
+  margin: 0;
+  display: inline;
+}
+
+/* Block-level Markdown elements need real block layout: the renderer wraps
+   content in a span, so promote the first-level children. */
+.math-text {
+  display: block;
+}
+
+.math-text p:has(+ p),
+.math-text ul,
+.math-text ol,
+.math-text h1,
+.math-text h2,
+.math-text h3,
+.math-text h4 {
+  display: block;
+}
+
+.math-text p + p,
+.math-text p + ul,
+.math-text p + ol,
+.math-text ul + p,
+.math-text ol + p,
+.math-text h3 + p,
+.math-text h4 + p {
+  display: block;
+  margin-top: 0.5rem;
+}
+
+.math-text p {
+  display: block;
+}
+
+.math-text ul,
+.math-text ol {
+  margin: 0.5rem 0;
+  padding-left: 1.25rem;
+}
+
+.math-text ul {
+  list-style: disc;
+}
+
+.math-text ol {
+  list-style: decimal;
+}
+
+.math-text li {
+  margin: 0.25rem 0;
+}
+
+.math-text li > p {
+  display: inline;
+}
+
+.math-text li::marker {
+  color: hsl(var(--accent));
+}
+
+.math-text strong {
+  font-weight: 700;
+  color: hsl(var(--primary));
+}
+
+.math-text h1,
+.math-text h2,
+.math-text h3,
+.math-text h4 {
+  font-weight: 700;
+  color: hsl(var(--primary));
+  margin-top: 0.75rem;
+}
+
+.math-text h1:first-child,
+.math-text h2:first-child,
+.math-text h3:first-child,
+.math-text h4:first-child,
+.math-text p:first-child,
+.math-text ul:first-child,
+.math-text ol:first-child {
+  margin-top: 0;
+}
+
+.math-text h1 { font-size: 1.05rem; }
+.math-text h2 { font-size: 1.02rem; }
+.math-text h3 { font-size: 1rem; }
+.math-text h4 { font-size: 0.95rem; }
+
+.math-text code {
+  font-family: var(--app-font-mono);
+  font-size: 0.85em;
+  background: hsl(var(--muted));
+  border-radius: 6px;
+  padding: 0.1em 0.35em;
 }
 
 .focus-ring:focus-visible {

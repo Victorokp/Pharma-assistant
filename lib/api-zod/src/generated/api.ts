@@ -28,7 +28,7 @@ export const askPharmaAssistantBodyContextMax = 12000;
 
 export const AskPharmaAssistantBody = zod.object({
   "question": zod.string().min(1).max(askPharmaAssistantBodyQuestionMax),
-  "mode": zod.enum(['ask', 'drug-profile', 'study-session']).optional(),
+  "mode": zod.enum(['ask', 'drug-profile', 'study-session', 'quiz-generation']).optional(),
   "context": zod.string().max(askPharmaAssistantBodyContextMax).optional()
 })
 
