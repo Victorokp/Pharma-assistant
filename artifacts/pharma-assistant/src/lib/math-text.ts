@@ -75,6 +75,24 @@ export function normalizeEscapedNewlines(text: string): string | null {
   return out === text ? null : out;
 }
 
+/**
+ * Remove AI-generated educational-use disclaimer lines from tutor/quiz
+ * content. The app displays its own static disclaimer once, so the AI no
+ * longer generates the sentence — but copies can still appear in older
+ * session text or when a model ignores the instruction. Only whole lines
+ * that START with the disclaimer phrase (optionally bulleted or bolded)
+ * are removed; normal prose is never touched.
+ */
+export function stripGeneratedDisclaimer(text: string): string {
+  if (!/educational use only/i.test(text)) return text;
+  const stripped = text.replace(
+    /^[ \t]*(?:[-*•][ \t]*)?(?:\*\*)?educational use only\b.*$/gim,
+    '',
+  );
+  if (stripped === text) return text;
+  return stripped.replace(/\n{3,}/g, '\n\n').trimEnd();
+}
+
 export type MathSegment =
   | { type: 'text'; value: string }
   | { type: 'math'; value: string; display: boolean };

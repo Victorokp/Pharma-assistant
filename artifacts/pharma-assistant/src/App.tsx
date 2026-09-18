@@ -85,17 +85,34 @@ function Home() {
         },
       ]);
     } catch (error) {
+      // Report what actually happened: the server's own message (quota,
+      // misconfiguration, empty response) takes priority; a genuine network
+      // failure (ApiError status 0 or fetch TypeError) gets a connection
+      // message; other 5xx are service problems, not the user's internet.
+      const serverMessage =
+        error instanceof ApiError &&
+        typeof error.data === 'object' &&
+        error.data !== null &&
+        typeof (error.data as { error?: unknown }).error === 'string'
+          ? ((error.data as { error: string }).error || null)
+          : null;
+      const raw = error instanceof Error ? error.message : '';
+      const isNetworkFailure =
+        (error instanceof ApiError && error.status === 0) ||
+        (!(error instanceof ApiError) && /failed to fetch|networkerror|load failed|fetch failed/i.test(raw));
+      const isServiceUnavailable = error instanceof ApiError && error.status >= 500;
       setMessages((current) => [
         ...current,
         {
           id: Date.now() + 1,
           role: 'assistant',
-          text:
-            error instanceof ApiError && (error.status === 0 || error.status >= 500)
-              ? 'The AI answer service is unreachable right now — check your connection and try again.'
-              : error instanceof Error
-                ? error.message
-                : 'The AI answer service is unavailable right now. Please try again.',
+          text: serverMessage
+            ? serverMessage
+            : isNetworkFailure
+              ? 'No connection to the AI answer service — check your internet connection and try again.'
+              : isServiceUnavailable
+                ? 'The AI answer service is temporarily unavailable. Please try again in a moment.'
+                : raw || 'The AI answer service is unavailable right now. Please try again.',
           timestamp: getTimeLabel(),
         },
       ]);

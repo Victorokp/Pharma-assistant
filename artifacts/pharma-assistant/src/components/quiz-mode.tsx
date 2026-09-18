@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ApiError, askPharmaAssistant } from '@workspace/api-client-react';
 import { MathText } from '@/components/math-text';
+import { stripGeneratedDisclaimer } from '@/lib/math-text';
 import { saveQuizResult } from '@/lib/progress-storage';
 import {
   AlertTriangle,
@@ -41,6 +42,50 @@ type Answered = {
 };
 
 type Phase = 'setup' | 'loading' | 'quiz' | 'results' | 'error';
+
+/**
+ * Extract the server's own error text when it provides one. The API attaches
+ * specific messages for provider failures (quota exhausted, service
+ * misconfiguration, empty AI response) that must reach the student verbatim
+ * instead of being masked as a connection problem.
+ */
+function serverErrorMessage(error: unknown): string | null {
+  if (!(error instanceof ApiError)) return null;
+  const data = error.data as { error?: unknown } | string | null;
+  const fromField =
+    typeof data === 'object' && data !== null && typeof data.error === 'string'
+      ? data.error.trim()
+      : undefined;
+  return fromField || null;
+}
+
+/**
+ * Translate a failed quiz-generation request into an honest message:
+ * - server-supplied message (quota/provider/empty-response) → shown verbatim;
+ * - ApiError status 0 → genuine network failure → connection message;
+ * - other 5xx → service temporarily unavailable (NOT the user's internet);
+ * - 4xx → the server's specific message;
+ * - non-ApiError throws → real network TypeErrors get a connection message,
+ *   while quiz-JSON validation errors keep their specific wording.
+ */
+function describeQuizError(error: unknown): string {
+  const serverMessage = serverErrorMessage(error);
+  if (serverMessage) return serverMessage;
+  if (error instanceof ApiError) {
+    if (error.status === 0) {
+      return 'No connection to the quiz service — check your internet connection and try again.';
+    }
+    if (error.status >= 500) {
+      return 'The quiz service is temporarily unavailable. Please try again in a moment.';
+    }
+    return error.message;
+  }
+  const raw = error instanceof Error ? error.message : '';
+  if (/failed to fetch|networkerror|load failed|fetch failed/i.test(raw)) {
+    return 'No connection to the quiz service — check your internet connection and try again.';
+  }
+  return raw || 'Could not generate the quiz. Please try again.';
+}
 
 const DIFFICULTIES: Array<{ value: Difficulty; blurb: string }> = [
   { value: 'Easy', blurb: 'Core concepts and recall' },
@@ -92,15 +137,17 @@ function parseQuestions(raw: string): QuizQuestion[] {
   for (const item of rawQuestions) {
     if (typeof item !== 'object' || item === null) continue;
     const q = item as Record<string, unknown>;
-    const question = typeof q.question === 'string' ? q.question.trim() : '';
+    // The app displays its own static educational-use notice; drop any the
+    // model still appends so questions never end with boilerplate.
+    const question = typeof q.question === 'string' ? stripGeneratedDisclaimer(q.question.trim()) : '';
     const rawOptions = typeof q.options === 'object' && q.options !== null ? (q.options as Record<string, unknown>) : {};
     const options: Partial<Record<Letter, string>> = {};
     for (const letter of ['A', 'B', 'C', 'D'] as const) {
       const value = rawOptions[letter];
-      if (typeof value === 'string' && value.trim()) options[letter] = value.trim();
+      if (typeof value === 'string' && value.trim()) options[letter] = stripGeneratedDisclaimer(value.trim());
     }
     const correctAnswer = isValidLetter(q.correctAnswer) ? q.correctAnswer : undefined;
-    const explanation = typeof q.explanation === 'string' ? q.explanation.trim() : '';
+    const explanation = typeof q.explanation === 'string' ? stripGeneratedDisclaimer(q.explanation.trim()) : '';
     const topic = typeof q.topic === 'string' && q.topic.trim() ? q.topic.trim() : 'General';
     const difficulty: Difficulty =
       q.difficulty === 'Easy' || q.difficulty === 'Medium' || q.difficulty === 'Hard'
@@ -238,15 +285,7 @@ export default function QuizMode({
       setAnswers([]);
       setPhase('quiz');
     } catch (error) {
-      if (error instanceof ApiError && (error.status === 0 || error.status >= 500)) {
-        setLoadError('The quiz service is unreachable right now — check your connection and try again.');
-      } else {
-        setLoadError(
-          error instanceof Error && error.message
-            ? error.message
-            : 'Could not generate the quiz. Please try again.',
-        );
-      }
+      setLoadError(describeQuizError(error));
       setPhase('error');
     }
   }, [curriculumContext, difficulty, questionCount, subjectTopic]);

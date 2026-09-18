@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ApiError, askPharmaAssistant } from '@workspace/api-client-react';
 import { MathText } from '@/components/math-text';
-import { normalizeEscapedNewlines } from '@/lib/math-text';
+import { normalizeEscapedNewlines, stripGeneratedDisclaimer } from '@/lib/math-text';
 import {
   BookOpen,
   Brain,
@@ -122,7 +122,9 @@ function normalizeStepText(value: string): string {
 function normalizeTutorStep(step: TutorStep): TutorStep {
   return {
     ...step,
-    content: normalizeStepText(step.content),
+    // The app shows its own static educational-use notice; drop any the
+    // model still appends so lessons never end with boilerplate.
+    content: stripGeneratedDisclaimer(normalizeStepText(step.content)),
     checkQuestion: step.checkQuestion ? normalizeStepText(step.checkQuestion) : null,
     objectives: step.objectives.map(normalizeStepText),
     keyTakeaways: step.keyTakeaways.map(normalizeStepText),
@@ -343,7 +345,14 @@ export default function StudyMode({
         context: buildSessionContext(sessionSetup, [], null),
       });
       const step = parseTutorStep(response.answer);
-      appendEntry({ role: 'tutor', kind: step.kind, text: step.content });
+      const content = stripGeneratedDisclaimer(step.content);
+      appendEntry({
+        role: 'tutor',
+        kind: step.kind,
+        text: step.checkQuestion
+          ? `${content}\n\nCheck question: ${step.checkQuestion}`
+          : content,
+      });
       setLastStep(step);
       setPendingQuestion(step.checkQuestion ?? null);
       if (step.objectives.length > 1 || step.objectives.length > 0) {
