@@ -44,14 +44,46 @@ function fallbackMathSegments(content: string): Array<
  * Protect currency amounts ("$5 and $10") from remark-math's inline parser:
  * when a line contains two or more dollars immediately followed by a digit
  * (a currency pattern), escape those dollars so Markdown renders them
- * literally. Variable-leading math like $[H^+]$ is untouched.
+ * literally.
+ *
+ * Exception: a line that also contains real paired math — LaTeX whose closing
+ * $ follows a non-space character (e.g. $10^{6}$–$10^{12}$, $1/v$) — is left
+ * untouched so the math still renders. Currency amounts never match this
+ * shape (the dollar before the next amount is preceded by a space).
  */
 function protectCurrency(content: string): string {
   return content
     .split('\n')
     .map((line) => {
       const currencyDollars = line.match(/\$\d/g);
-      return currencyDollars && currencyDollars.length >= 2 ? line.replace(/\$/g, '\\$') : line;
+      if (!currencyDollars || currencyDollars.length < 2) return line;
+      if (/[^$\s]\$[^$]*\$/.test(line)) return line;
+      return line.replace(/\$/g, '\\$');
+    })
+    .join('\n');
+}
+
+/**
+ * remark-math only parses $$…$$ as a display block when it spans its own
+ * fenced lines; a single-line $$…$$ (even alone between paragraphs) renders
+ * as inline math. Normalize single-line display delimiters into the fenced
+ * multi-line form so equations always typeset as proper display blocks.
+ * Lines containing more than one $$ pair are left untouched.
+ */
+function normalizeDisplayMath(content: string): string {
+  return content
+    .split('\n')
+    .map((line) => {
+      const trimmed = line.trim();
+      if (
+        trimmed.length > 4 &&
+        trimmed.startsWith('$$') &&
+        trimmed.endsWith('$$') &&
+        !trimmed.slice(2, -2).includes('$$')
+      ) {
+        return '$$\n' + trimmed.slice(2, -2).trim() + '\n$$';
+      }
+      return line;
     })
     .join('\n');
 }
@@ -63,7 +95,7 @@ function MathTextBase({ content }: { content: string }) {
       // Normalize literal "\\n" / "\\r" sequences the model may emit inside
       // its JSON payload before Markdown sees them, so they become real line
       // breaks and paragraphs instead of visible backslash characters.
-      const normalized = normalizeEscapedNewlines(content) ?? content;
+      const normalized = normalizeDisplayMath(normalizeEscapedNewlines(content) ?? content);
       return (
         <ReactMarkdown
           remarkPlugins={[remarkMath, remarkBreaks]}

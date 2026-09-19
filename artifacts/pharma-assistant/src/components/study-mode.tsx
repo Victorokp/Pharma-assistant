@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ApiError, askPharmaAssistant } from '@workspace/api-client-react';
 import { MathText } from '@/components/math-text';
 import { normalizeEscapedNewlines, stripGeneratedDisclaimer } from '@/lib/math-text';
+import { firstCheckQuestion, getAuthoredLesson, orderedSections, recapTakeaways } from '@/lib/content';
+import type { Lesson } from '@/lib/content';
 import {
   BookOpen,
   Brain,
@@ -48,6 +50,20 @@ type SessionEntry = {
 };
 
 type Phase = 'setup' | 'session' | 'summary';
+
+/**
+ * Authored-lesson session (Phase 2 content layer). When the requested
+ * subject/topic matches an authored lesson, the session is taught from the
+ * curated content progressively; otherwise the existing live-AI path runs
+ * unchanged. Curriculum IDs are never modified — content is attached,
+ * never restructured.
+ */
+type AuthoredSession = {
+  lessonId: string;
+  stepIndex: number; // index of the last shown section
+  questionAsked: boolean;
+  totalSteps: number;
+};
 
 const DIFFICULTIES: Array<{ value: Difficulty; blurb: string }> = [
   { value: 'Beginner', blurb: 'Start from the fundamentals' },
@@ -246,6 +262,10 @@ export default function StudyMode({
   const logEndRef = useRef<HTMLDivElement | null>(null);
   const answerInputRef = useRef<HTMLTextAreaElement | null>(null);
 
+  // Authored-lesson session state (non-null ⇒ authored path is driving).
+  const [authored, setAuthored] = useState<AuthoredSession | null>(null);
+  const [authoredLesson, setAuthoredLesson] = useState<Lesson | null>(null);
+
   const transcriptRef = useRef<SessionEntry[]>([]);
   useEffect(() => {
     transcriptRef.current = transcript;
@@ -336,6 +356,35 @@ export default function StudyMode({
     setStudentAnswer('');
     setPhase('session');
 
+    // Authored-content-first: if a curated lesson exists for this node, teach
+    // from it (progressive sections + its own check question). The live-AI
+    // path below runs unchanged when nothing is authored.
+    const lesson = getAuthoredLesson(trimmedSubject, trimmedTopic);
+    if (lesson) {
+      const sections = orderedSections(lesson.sections);
+      // Start at the first canonical section (FOUNDATION when present,
+      // otherwise UNDERSTAND) per the approved teaching order.
+      const intro = sections[0];
+      const index = sections.indexOf(intro);
+      const question = firstCheckQuestion(lesson);
+      appendEntry({
+        role: 'tutor',
+        kind: 'teaching',
+        text: question
+          ? `${intro.body}\n\nCheck question: ${question}`
+          : intro.body,
+      });
+      setAuthored({
+        lessonId: lesson.nodeId,
+        stepIndex: index,
+        questionAsked: Boolean(question),
+        totalSteps: sections.length,
+      });
+      setAuthoredLesson(lesson);
+      setPendingQuestion(question);
+      return;
+    }
+
     try {
       setIsThinking(true);
       setSessionError('');
@@ -365,23 +414,89 @@ export default function StudyMode({
     }
   }, [appendEntry, curriculumContext, difficulty, duration, subject, topic]);
 
+  /** Advance (or wrap up) an authored-lesson session without any AI call. */
+  const advanceAuthored = useCallback(
+    (action: 'answer' | 'continue' | 'example' | 'explain' | 'struggle' | 'end', studentText?: string) => {
+      if (!authored || !authoredLesson) return;
+      const sections = orderedSections(authoredLesson.sections);
+      const state = authored;
+      if (studentText) appendEntry({ role: 'student', kind: 'student-answer', text: studentText });
+
+      if (action === 'end' || state.stepIndex >= sections.length - 1) {
+        const recap = sections.find((s) => s.kind === 'QUICK RECAP');
+        const fallback = `Session complete — ${authoredLesson.title}. Review the recap and revisit any section you found difficult.`;
+        const step: TutorStep = {
+          ...emptyStep,
+          kind: 'complete',
+          content: recap ? recap.body : fallback,
+          keyTakeaways: recapTakeaways(authoredLesson),
+          revisionSummary: recap ? recap.body : fallback,
+        };
+        appendEntry({ role: 'tutor', kind: 'complete', text: step.content });
+        setLastStep(step);
+        setPendingQuestion(null);
+        setAuthored(null);
+        setAuthoredLesson(null);
+        setPhase('summary');
+        return;
+      }
+
+      if (action === 'explain' || action === 'struggle') {
+        appendEntry({
+          role: 'tutor',
+          kind: 'teaching',
+          text: "Of course — tell me which part feels unclear (type it below) and we'll break it down before moving on. You can also press Continue to take the next section.",
+        });
+        setPendingQuestion(null);
+        return;
+      }
+
+      let nextIndex = state.stepIndex + 1;
+      if (action === 'example') {
+        const workedIdx = sections.findIndex((s, i) => i > state.stepIndex && s.kind === 'WORKED EXAMPLE');
+        if (workedIdx > -1) nextIndex = workedIdx;
+      }
+      const next = sections[nextIndex];
+      appendEntry({ role: 'tutor', kind: 'teaching', text: next.body });
+      setAuthored({ ...state, stepIndex: nextIndex, questionAsked: false });
+      setPendingQuestion(null);
+    },
+    [appendEntry, authored, authoredLesson],
+  );
+
   const submitAnswer = useCallback(() => {
     const trimmed = studentAnswer.trim();
     if (!trimmed || isThinking) return;
-    const currentPending = pendingQuestion;
     setStudentAnswer('');
+    if (authored && authoredLesson) {
+      advanceAuthored('answer', trimmed);
+      return;
+    }
+    const currentPending = pendingQuestion;
     setPendingQuestion(null);
     void callTutor(trimmed, transcriptRef.current, currentPending);
     setPendingQuestion(currentPending);
-  }, [callTutor, isThinking, pendingQuestion, studentAnswer]);
+  }, [advanceAuthored, authored, authoredLesson, callTutor, isThinking, pendingQuestion, studentAnswer]);
 
   const runControl = useCallback(
     (action: TutorAction) => {
       if (isThinking) return;
       if (action === 'end') {
+        if (authored && authoredLesson) {
+          advanceAuthored('end');
+          return;
+        }
         const currentTranscript = transcriptRef.current;
         setStudentAnswer('');
         void callTutor('[END SESSION] Please end the session now: provide key takeaways, areas I struggled with, topics to review, and a short revision summary.', currentTranscript, pendingQuestion);
+        return;
+      }
+
+      if (authored && authoredLesson) {
+        if (action === 'continue') advanceAuthored('continue');
+        else if (action === 'example') advanceAuthored('example');
+        else if (action === 'explain-differently') advanceAuthored('explain');
+        else if (action === 'struggling') advanceAuthored('struggle');
         return;
       }
 
@@ -394,11 +509,15 @@ export default function StudyMode({
       setStudentAnswer('');
       void callTutor(prompts[action], transcriptRef.current, pendingQuestion);
     },
-    [callTutor, isThinking, pendingQuestion],
+    [advanceAuthored, authored, authoredLesson, callTutor, isThinking, pendingQuestion],
   );
 
   const endSession = useCallback(() => {
     if (isThinking || !setup) return;
+    if (authored && authoredLesson) {
+      advanceAuthored('end');
+      return;
+    }
     void callTutor(
       '[END SESSION] Please end the session now with key takeaways, areas I struggled with, topics to review, and a short revision summary.',
       transcriptRef.current,
@@ -418,6 +537,8 @@ export default function StudyMode({
     setStudentAnswer('');
     setSessionError('');
     setCurriculumContext(null);
+    setAuthored(null);
+    setAuthoredLesson(null);
   }, []);
 
   const hasPendingQuestion = pendingQuestion !== null;
