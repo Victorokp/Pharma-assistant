@@ -5,6 +5,32 @@ import { pct201DensityBlockLessons } from './pct201-density-block';
 import { pct201ConcentrationLessons } from './pct201-concentration-block';
 import { pct201PotencyLessons } from './pct201-potency-block';
 import { pct201ClinicalLessons } from './pct201-clinical-block';
+import { pct201DoseLessons } from './pct201-dose-block';
+import { pct201FundamentalsLessons } from './pct201-fundamentals';
+import { pct201MeasurementSystemsLessons } from './pct201-measurement-systems';
+import { pct201MeasurementPracticeLessons } from './pct201-measurement-practice';
+import { pct201IntroductionLessons } from './pct201-introduction-block';
+import { pct201DosageFormsLessons } from './pct201-dosage-forms';
+import { pct201ExcipientsLessons } from './pct201-excipients';
+import { pct201PrescriptionInterpretationLessons } from './pct201-prescription-interpretation';
+import { pct201IsotonicBuffersLessons } from './pct201-isotonic-buffers';
+import { pct201ElectrolytesLessons } from './pct201-electrolytes';
+import { pct201ParenteralLessons } from './pct201-parenteral';
+import { pct201NutritionLessons } from './pct201-nutrition';
+import { pct201DilutionAlligationLessons } from './pct201-dilution-alligation';
+import { pct201FormulaScalingLessons } from './pct201-formula-scaling';
+import { pct201CompoundingLessons } from './pct201-compounding';
+import { pct201VeterinaryLessons } from './pct201-veterinary';
+import { pct201PlantExtractsLessons } from './pct201-plant-extracts';
+import { pct201DrugMoietyLessons } from './pct201-drug-moiety';
+import { pct201RadiopharmaceuticalLessons } from './pct201-radiopharmaceutical';
+import { pct201PharmacokineticsLessons } from './pct201-pharmacokinetics';
+import { pct201CostLessons } from './pct201-cost';
+import { pct201DispensingEthicsLessons } from './pct201-dispensing-ethics';
+import { pct201DispensingProcedureLessons } from './pct201-dispensing-procedure';
+import { pct201PackagingLessons } from './pct201-packaging';
+import { pct201SolubilityLessons } from './pct201-solubility';
+import { pct201DiffusionPartitioningLessons } from './pct201-diffusion-partitioning';
 
 export type { Lesson, LessonSection, LessonSectionKind, LessonTier } from './types';
 
@@ -13,7 +39,7 @@ export type { Lesson, LessonSection, LessonSectionKind, LessonTier } from './typ
  * land; `validate-content.mjs` verifies every entry against the locked
  * curriculum (IDs must exist, titles must match, no duplicates).
  */
-export const LESSONS: readonly Lesson[] = [...bch201EnzymesLessons, ...pct201SpecificGravityLessons, ...pct201DensityBlockLessons, ...pct201ConcentrationLessons, ...pct201PotencyLessons, ...pct201ClinicalLessons];
+export const LESSONS: readonly Lesson[] = [...bch201EnzymesLessons, ...pct201SpecificGravityLessons, ...pct201DensityBlockLessons, ...pct201ConcentrationLessons, ...pct201PotencyLessons, ...pct201ClinicalLessons, ...pct201DoseLessons, ...pct201FundamentalsLessons, ...pct201MeasurementSystemsLessons, ...pct201MeasurementPracticeLessons, ...pct201IntroductionLessons, ...pct201DosageFormsLessons, ...pct201ExcipientsLessons, ...pct201PrescriptionInterpretationLessons, ...pct201IsotonicBuffersLessons, ...pct201ElectrolytesLessons, ...pct201ParenteralLessons, ...pct201NutritionLessons, ...pct201DilutionAlligationLessons, ...pct201FormulaScalingLessons, ...pct201CompoundingLessons, ...pct201VeterinaryLessons, ...pct201PlantExtractsLessons, ...pct201DrugMoietyLessons, ...pct201RadiopharmaceuticalLessons, ...pct201PharmacokineticsLessons, ...pct201CostLessons, ...pct201DispensingEthicsLessons, ...pct201DispensingProcedureLessons, ...pct201PackagingLessons, ...pct201SolubilityLessons, ...pct201DiffusionPartitioningLessons];
 
 const byNodeId = new Map(LESSONS.map((lesson) => [lesson.nodeId, lesson]));
 
@@ -187,6 +213,86 @@ export const CONTENT_MANIFEST: readonly ContentManifestEntry[] = [
     lessonCount: 8,
     tiers: { C: 7, D: 1 },
     batch: 7,
+    validated: true,
+  },
+  {
+    courseId: 'pct-201',
+    courseCode: 'PCT 201',
+    topicId: 'pct-10',
+    topicName: 'Dose Calculations',
+    lessonCount: 11,
+    tiers: { A: 1, B: 5, C: 5 },
+    batch: 8,
+    validated: true,
+  },
+  {
+    courseId: 'pct-201',
+    courseCode: 'PCT 201',
+    topicId: 'pct-4',
+    topicName: 'Fundamentals of Pharmaceutical Calculations',
+    lessonCount: 1,
+    tiers: { D: 1 },
+    batch: 9,
+    validated: true,
+  },
+  {
+    courseId: 'pct-201',
+    courseCode: 'PCT 201',
+    topicId: 'pct-5',
+    topicName: 'International Systems of Measurement',
+    lessonCount: 10,
+    tiers: { B: 8, C: 1, D: 1 },
+    batch: 10,
+    validated: true,
+  },
+  {
+    courseId: 'pct-201',
+    courseCode: 'PCT 201',
+    topicId: 'pct-6',
+    topicName: 'Pharmaceutical Measurement',
+    lessonCount: 9,
+    tiers: { B: 8, D: 1 },
+    batch: 11,
+    validated: true,
+  },
+  {
+    courseId: 'pct-201',
+    courseCode: 'PCT 201',
+    topicId: 'pct-1',
+    topicName: 'Introduction to Pharmaceutics',
+    lessonCount: 7,
+    tiers: { B: 7 },
+    batch: 12,
+    validated: true,
+  },
+  {
+    courseId: 'pct-201',
+    courseCode: 'PCT 201',
+    topicId: 'pct-2',
+    topicName: 'Pharmaceutical Dosage Forms',
+    lessonCount: 9,
+    tiers: { B: 9 },
+    batch: 13,
+    validated: true,
+  },
+  {
+    courseId: 'pct-201',
+    courseCode: 'PCT 201',
+    topicId: 'pct-3',
+    topicName: 'Pharmaceutical Ingredients and Excipients',
+    lessonCount: 14,
+    tiers: { B: 14 },
+    batch: 14,
+    validated: true,
+  },
+  {
+    courseId: 'pct-201',
+    courseCode: 'PCT 201',
+    topicId: 'pct-7',
+    topicName: 'Prescription and Medication-Order Interpretation',
+    lessonCount: 11,
+    tiers: { B: 11 },
+    batch: 15,
     validated: true,
   },
 ];
