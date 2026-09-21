@@ -31,6 +31,20 @@ import { pct201DispensingProcedureLessons } from './pct201-dispensing-procedure'
 import { pct201PackagingLessons } from './pct201-packaging';
 import { pct201SolubilityLessons } from './pct201-solubility';
 import { pct201DiffusionPartitioningLessons } from './pct201-diffusion-partitioning';
+import { pct201SurfaceInterfacialLessons } from './pct201-surface-interfacial';
+import { pct201RheologyLessons } from './pct201-rheology';
+import { pct201MicromeriticsLessons } from './pct201-micromeritics';
+import { pct201PowdersGranulesLessons } from './pct201-powders-granules';
+import { pct201TabletsLessons } from './pct201-tablets';
+import { pct201CapsulesLessons } from './pct201-capsules';
+import { pct201SolutionsLessons } from './pct201-solutions';
+import { pct201SuspensionsLessons } from './pct201-suspensions';
+import { pct201EmulsionsLessons } from './pct201-emulsions';
+import { pct201SemisolidsLessons } from './pct201-semisolids';
+import { pct201SuppositoriesLessons } from './pct201-suppositories';
+import { pct201SterileLessons } from './pct201-sterile';
+import { pct201StabilityLessons } from './pct201-stability';
+import { pct201CalculationFoundationsLessons } from './pct201-calculation-foundations';
 
 export type { Lesson, LessonSection, LessonSectionKind, LessonTier } from './types';
 
@@ -39,7 +53,7 @@ export type { Lesson, LessonSection, LessonSectionKind, LessonTier } from './typ
  * land; `validate-content.mjs` verifies every entry against the locked
  * curriculum (IDs must exist, titles must match, no duplicates).
  */
-export const LESSONS: readonly Lesson[] = [...bch201EnzymesLessons, ...pct201SpecificGravityLessons, ...pct201DensityBlockLessons, ...pct201ConcentrationLessons, ...pct201PotencyLessons, ...pct201ClinicalLessons, ...pct201DoseLessons, ...pct201FundamentalsLessons, ...pct201MeasurementSystemsLessons, ...pct201MeasurementPracticeLessons, ...pct201IntroductionLessons, ...pct201DosageFormsLessons, ...pct201ExcipientsLessons, ...pct201PrescriptionInterpretationLessons, ...pct201IsotonicBuffersLessons, ...pct201ElectrolytesLessons, ...pct201ParenteralLessons, ...pct201NutritionLessons, ...pct201DilutionAlligationLessons, ...pct201FormulaScalingLessons, ...pct201CompoundingLessons, ...pct201VeterinaryLessons, ...pct201PlantExtractsLessons, ...pct201DrugMoietyLessons, ...pct201RadiopharmaceuticalLessons, ...pct201PharmacokineticsLessons, ...pct201CostLessons, ...pct201DispensingEthicsLessons, ...pct201DispensingProcedureLessons, ...pct201PackagingLessons, ...pct201SolubilityLessons, ...pct201DiffusionPartitioningLessons];
+export const LESSONS: readonly Lesson[] = [...bch201EnzymesLessons, ...pct201SpecificGravityLessons, ...pct201DensityBlockLessons, ...pct201ConcentrationLessons, ...pct201PotencyLessons, ...pct201ClinicalLessons, ...pct201DoseLessons, ...pct201FundamentalsLessons, ...pct201MeasurementSystemsLessons, ...pct201MeasurementPracticeLessons, ...pct201IntroductionLessons, ...pct201DosageFormsLessons, ...pct201ExcipientsLessons, ...pct201PrescriptionInterpretationLessons, ...pct201IsotonicBuffersLessons, ...pct201ElectrolytesLessons, ...pct201ParenteralLessons, ...pct201NutritionLessons, ...pct201DilutionAlligationLessons, ...pct201FormulaScalingLessons, ...pct201CompoundingLessons, ...pct201VeterinaryLessons, ...pct201PlantExtractsLessons, ...pct201DrugMoietyLessons, ...pct201RadiopharmaceuticalLessons, ...pct201PharmacokineticsLessons, ...pct201CostLessons, ...pct201DispensingEthicsLessons, ...pct201DispensingProcedureLessons, ...pct201PackagingLessons, ...pct201SolubilityLessons, ...pct201DiffusionPartitioningLessons, ...pct201SurfaceInterfacialLessons, ...pct201RheologyLessons, ...pct201MicromeriticsLessons, ...pct201PowdersGranulesLessons, ...pct201TabletsLessons, ...pct201CapsulesLessons, ...pct201SolutionsLessons, ...pct201SuspensionsLessons, ...pct201EmulsionsLessons, ...pct201SemisolidsLessons, ...pct201SuppositoriesLessons, ...pct201SterileLessons, ...pct201StabilityLessons, ...pct201CalculationFoundationsLessons];
 
 const byNodeId = new Map(LESSONS.map((lesson) => [lesson.nodeId, lesson]));
 
