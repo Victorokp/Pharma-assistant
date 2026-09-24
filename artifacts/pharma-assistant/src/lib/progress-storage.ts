@@ -1,118 +1,42 @@
 /**
- * Student progress storage.
+ * Student progress storage — the original localStorage API, preserved.
  *
- * Persistence layer for quiz history and derived progress analytics.
- * Uses localStorage: quiz data is non-sensitive study history, stays on the
- * student's device, and survives refresh. The store is an isolated module so
- * a server-backed implementation (Postgres via DATABASE_URL) can replace it
- * later without touching components.
+ * Persistence layer for quiz history and derived progress analytics. Uses
+ * localStorage: quiz data is non-sensitive study history, stays on the
+ * student's device, and survives refresh.
  *
- * Storage key is versioned so a future schema change can migrate cleanly.
+ * Phase 3: the pure logic and storage primitives now live in
+ * progress-core.ts so the server backend (progress-server.ts) reuses the
+ * exact same computations. When a student signs in, progress-store.ts
+ * swaps this module for the server backend transparently — components keep
+ * calling the same functions.
  */
 
-const STORAGE_KEY = 'pharma-assistant.progress.v1';
-const MAX_QUIZZES = 50;
+import {
+  type ProgressData,
+  type ProgressStats,
+  type QuizResult,
+  type TopicPerformance,
+  computeStatsFromQuizzes,
+  clearLocalData,
+  makeLocalQuiz,
+  readLocalData,
+  writeLocalData,
+} from './progress-core';
 
-/** One completed quiz. */
-export type QuizResult = {
-  id: string;
-  /** ISO timestamp. */
-  completedAt: string;
-  subject: string;
-  difficulty: string;
-  /** Total questions that were answered in the quiz. */
-  totalQuestions: number;
-  correct: number;
-  incorrect: number;
-  percentage: number;
-  /** Per-question outcomes, keyed by topic, for strong/weak analysis. */
-  topicOutcomes: Array<{ topic: string; correct: boolean }>;
-};
+export type { ProgressData, ProgressStats, QuizResult, TopicPerformance };
 
-export type ProgressData = {
-  quizzes: QuizResult[];
-};
-
-export type TopicPerformance = {
-  topic: string;
-  answered: number;
-  correct: number;
-  percentage: number;
-};
-
-export type ProgressStats = {
-  quizzesCompleted: number;
-  questionsAnswered: number;
-  overallAverage: number;
-  bestScore: number;
-  strongAreas: TopicPerformance[];
-  weakAreas: TopicPerformance[];
-  recentQuizzes: QuizResult[];
-};
-
-function isTopicOutcomeArray(value: unknown): value is QuizResult['topicOutcomes'] {
-  return (
-    Array.isArray(value) &&
-    value.every(
-      (item) =>
-        typeof item === 'object' &&
-        item !== null &&
-        typeof (item as Record<string, unknown>).topic === 'string' &&
-        typeof (item as Record<string, unknown>).correct === 'boolean',
-    )
-  );
-}
-
-function isQuizResult(value: unknown): value is QuizResult {
-  if (typeof value !== 'object' || value === null) return false;
-  const candidate = value as Record<string, unknown>;
-  return (
-    typeof candidate.id === 'string' &&
-    typeof candidate.completedAt === 'string' &&
-    typeof candidate.subject === 'string' &&
-    typeof candidate.difficulty === 'string' &&
-    typeof candidate.totalQuestions === 'number' &&
-    typeof candidate.correct === 'number' &&
-    typeof candidate.incorrect === 'number' &&
-    typeof candidate.percentage === 'number' &&
-    isTopicOutcomeArray(candidate.topicOutcomes)
-  );
-}
-
-/** Read raw data; corrupted or partial entries are discarded defensively. */
-function readData(): ProgressData {
-  try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (!raw) return { quizzes: [] };
-    const parsed: unknown = JSON.parse(raw);
-    const quizzes = Array.isArray((parsed as ProgressData | null)?.quizzes)
-      ? ((parsed as ProgressData).quizzes.filter(isQuizResult) as QuizResult[])
-      : [];
-    return { quizzes };
-  } catch {
-    return { quizzes: [] };
-  }
-}
-
-function writeData(data: ProgressData): void {
-  try {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-  } catch {
-    // Storage unavailable (private mode / quota): progress becomes
-    // session-only rather than crashing the app.
-  }
-}
-
+/**
+ * Save one completed quiz locally. Kept as the guest-backend write path;
+ * when signed in, progress-store.saveQuizResult routes to the server
+ * instead and this function is not called.
+ */
 export function saveQuizResult(result: Omit<QuizResult, 'id' | 'completedAt'>): QuizResult {
-  const data = readData();
-  const quiz: QuizResult = {
-    ...result,
-    id: `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
-    completedAt: new Date().toISOString(),
-  };
-  // Newest first, capped so storage stays small.
-  const quizzes = [quiz, ...data.quizzes].slice(0, MAX_QUIZZES);
-  writeData({ quizzes });
+  const data = readLocalData();
+  const quiz = makeLocalQuiz(result);
+  // Newest first, capped so local storage stays small.
+  const quizzes = [quiz, ...data.quizzes].slice(0, 50);
+  writeLocalData({ quizzes });
   return quiz;
 }
 
@@ -139,26 +63,12 @@ export function computeTopicPerformance(quizzes: QuizResult[]): TopicPerformance
 }
 
 export function computeStats(): ProgressStats {
-  const { quizzes } = readData();
-  const answered = quizzes.reduce((sum, quiz) => sum + quiz.totalQuestions, 0);
-  const correct = quizzes.reduce((sum, quiz) => sum + quiz.correct, 0);
-  const topics = computeTopicPerformance(quizzes);
-
-  return {
-    quizzesCompleted: quizzes.length,
-    questionsAnswered: answered,
-    overallAverage: answered > 0 ? Math.round((correct / answered) * 100) : 0,
-    bestScore: quizzes.reduce((best, quiz) => Math.max(best, quiz.percentage), 0),
-    // A topic needs at least 2 answers before we call it strong or weak.
-    strongAreas: topics.filter((topic) => topic.answered >= 2 && topic.percentage >= 75),
-    weakAreas: topics.filter((topic) => topic.answered >= 2 && topic.percentage < 75),
-    recentQuizzes: quizzes.slice(0, 5),
-  };
+  return computeStatsFromQuizzes(readLocalData().quizzes);
 }
 
 /** Percentages for a single topic across quizzes, oldest first. */
 export function getTopicQuizHistory(topic: string): Array<{ quizId: string; percentage: number }> {
-  const { quizzes } = readData();
+  const { quizzes } = readLocalData();
   const chronological = [...quizzes].reverse();
   const history: Array<{ quizId: string; percentage: number }> = [];
   for (const quiz of chronological) {
@@ -170,11 +80,9 @@ export function getTopicQuizHistory(topic: string): Array<{ quizId: string; perc
   return history;
 }
 
-/** Test/debug hook: remove all progress. */
+/** Test/debug hook: remove all progress (guest data only). */
 export function clearProgress(): void {
-  try {
-    window.localStorage.removeItem(STORAGE_KEY);
-  } catch {
-    // ignore
-  }
+  clearLocalData();
 }
+
+export { readLocalData as readGuestData, writeLocalData as writeGuestData };

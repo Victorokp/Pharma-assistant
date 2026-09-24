@@ -1,5 +1,20 @@
 import type { Lesson, LessonSection } from './types';
 import { bch201EnzymesLessons } from './bch201-enzymes';
+import { bch201MetabolismLessons } from './bch201-metabolism';
+import { bch201CarbMetabolism1Lessons } from './bch201-carb-metabolism-1';
+import { bch201CarbMetabolism2Lessons } from './bch201-carb-metabolism-2';
+import { bch201ProteinMetabolismLessons } from './bch201-protein-metabolism';
+import { bch201LipidMetabolismLessons } from './bch201-lipid-metabolism';
+import { bch201DisordersTcaLessons } from './bch201-disorders-tca';
+import { bch201AminoAcidsLessons } from './bch201-amino-acids';
+import { bch201AminoAcidMetabolismLessons } from './bch201-amino-acid-metabolism';
+import { bch201ProteinStructureLessons } from './bch201-protein-structure';
+import { bch201Membranes1Lessons } from './bch201-membranes-1';
+import { bch201Membranes2Lessons } from './bch201-membranes-2';
+import { bch201DigestionAbsorptionLessons } from './bch201-digestion-absorption';
+import { bch201PcmLessons } from './bch201-pcm';
+import { bch201BioenergeticsClinicalLessons } from './bch201-bioenergetics-clinical';
+import { bch201NucleotidesLessons } from './bch201-nucleotides';
 import { pct201SpecificGravityLessons } from './pct201-specific-gravity';
 import { pct201DensityBlockLessons } from './pct201-density-block';
 import { pct201ConcentrationLessons } from './pct201-concentration-block';
@@ -53,7 +68,7 @@ export type { Lesson, LessonSection, LessonSectionKind, LessonTier } from './typ
  * land; `validate-content.mjs` verifies every entry against the locked
  * curriculum (IDs must exist, titles must match, no duplicates).
  */
-export const LESSONS: readonly Lesson[] = [...bch201EnzymesLessons, ...pct201SpecificGravityLessons, ...pct201DensityBlockLessons, ...pct201ConcentrationLessons, ...pct201PotencyLessons, ...pct201ClinicalLessons, ...pct201DoseLessons, ...pct201FundamentalsLessons, ...pct201MeasurementSystemsLessons, ...pct201MeasurementPracticeLessons, ...pct201IntroductionLessons, ...pct201DosageFormsLessons, ...pct201ExcipientsLessons, ...pct201PrescriptionInterpretationLessons, ...pct201IsotonicBuffersLessons, ...pct201ElectrolytesLessons, ...pct201ParenteralLessons, ...pct201NutritionLessons, ...pct201DilutionAlligationLessons, ...pct201FormulaScalingLessons, ...pct201CompoundingLessons, ...pct201VeterinaryLessons, ...pct201PlantExtractsLessons, ...pct201DrugMoietyLessons, ...pct201RadiopharmaceuticalLessons, ...pct201PharmacokineticsLessons, ...pct201CostLessons, ...pct201DispensingEthicsLessons, ...pct201DispensingProcedureLessons, ...pct201PackagingLessons, ...pct201SolubilityLessons, ...pct201DiffusionPartitioningLessons, ...pct201SurfaceInterfacialLessons, ...pct201RheologyLessons, ...pct201MicromeriticsLessons, ...pct201PowdersGranulesLessons, ...pct201TabletsLessons, ...pct201CapsulesLessons, ...pct201SolutionsLessons, ...pct201SuspensionsLessons, ...pct201EmulsionsLessons, ...pct201SemisolidsLessons, ...pct201SuppositoriesLessons, ...pct201SterileLessons, ...pct201StabilityLessons, ...pct201CalculationFoundationsLessons];
+export const LESSONS: readonly Lesson[] = [...bch201EnzymesLessons, ...bch201MetabolismLessons, ...bch201CarbMetabolism1Lessons, ...bch201CarbMetabolism2Lessons, ...bch201ProteinMetabolismLessons, ...bch201LipidMetabolismLessons, ...bch201DisordersTcaLessons, ...bch201AminoAcidsLessons, ...bch201AminoAcidMetabolismLessons, ...bch201ProteinStructureLessons, ...bch201Membranes1Lessons, ...bch201Membranes2Lessons, ...bch201DigestionAbsorptionLessons, ...bch201PcmLessons, ...bch201BioenergeticsClinicalLessons, ...bch201NucleotidesLessons, ...pct201SpecificGravityLessons, ...pct201DensityBlockLessons, ...pct201ConcentrationLessons, ...pct201PotencyLessons, ...pct201ClinicalLessons, ...pct201DoseLessons, ...pct201FundamentalsLessons, ...pct201MeasurementSystemsLessons, ...pct201MeasurementPracticeLessons, ...pct201IntroductionLessons, ...pct201DosageFormsLessons, ...pct201ExcipientsLessons, ...pct201PrescriptionInterpretationLessons, ...pct201IsotonicBuffersLessons, ...pct201ElectrolytesLessons, ...pct201ParenteralLessons, ...pct201NutritionLessons, ...pct201DilutionAlligationLessons, ...pct201FormulaScalingLessons, ...pct201CompoundingLessons, ...pct201VeterinaryLessons, ...pct201PlantExtractsLessons, ...pct201DrugMoietyLessons, ...pct201RadiopharmaceuticalLessons, ...pct201PharmacokineticsLessons, ...pct201CostLessons, ...pct201DispensingEthicsLessons, ...pct201DispensingProcedureLessons, ...pct201PackagingLessons, ...pct201SolubilityLessons, ...pct201DiffusionPartitioningLessons, ...pct201SurfaceInterfacialLessons, ...pct201RheologyLessons, ...pct201MicromeriticsLessons, ...pct201PowdersGranulesLessons, ...pct201TabletsLessons, ...pct201CapsulesLessons, ...pct201SolutionsLessons, ...pct201SuspensionsLessons, ...pct201EmulsionsLessons, ...pct201SemisolidsLessons, ...pct201SuppositoriesLessons, ...pct201SterileLessons, ...pct201StabilityLessons, ...pct201CalculationFoundationsLessons];
 
 const byNodeId = new Map(LESSONS.map((lesson) => [lesson.nodeId, lesson]));
 
@@ -187,6 +202,176 @@ export const CONTENT_MANIFEST: readonly ContentManifestEntry[] = [
     lessonCount: 13,
     tiers: { A: 2, B: 7, C: 1, D: 2 },
     batch: 1,
+    validated: true,
+  },
+  {
+    courseId: 'bch-201',
+    courseCode: 'BCH 201',
+    topicId: 'introduction-to-biochemistry',
+    topicName: 'Introduction to Biochemistry',
+    lessonCount: 2,
+    tiers: { C: 1, A: 1 },
+    batch: 4,
+    validated: true,
+  },
+  {
+    courseId: 'bch-201',
+    courseCode: 'BCH 201',
+    topicId: 'metabolism',
+    topicName: 'Metabolism — Introduction to the Study of Intermediary Metabolism',
+    lessonCount: 13,
+    tiers: { C: 1, A: 2, B: 10 },
+    batch: 4,
+    validated: true,
+  },
+  {
+    courseId: 'bch-201',
+    courseCode: 'BCH 201',
+    topicId: 'carbohydrate-metabolism-topic',
+    topicName: 'Carbohydrate Metabolism',
+    lessonCount: 16,
+    tiers: { C: 1, A: 5, B: 10 },
+    batch: 5,
+    validated: true,
+  },
+  {
+    courseId: 'bch-201',
+    courseCode: 'BCH 201',
+    topicId: 'protein-metabolism-topic',
+    topicName: 'Protein Metabolism',
+    lessonCount: 11,
+    tiers: { C: 1, A: 2, B: 8 },
+    batch: 4,
+    validated: true,
+  },
+  {
+    courseId: 'bch-201',
+    courseCode: 'BCH 201',
+    topicId: 'lipid-metabolism-topic',
+    topicName: 'Lipid Metabolism',
+    lessonCount: 14,
+    tiers: { C: 1, A: 4, B: 9 },
+    batch: 5,
+    validated: true,
+  },
+  {
+    courseId: 'bch-201',
+    courseCode: 'BCH 201',
+    topicId: 'disorders-of-intermediary-metabolism',
+    topicName: 'Disorders of Intermediary Metabolism',
+    lessonCount: 6,
+    tiers: { C: 1, A: 2, B: 3 },
+    batch: 6,
+    validated: true,
+  },
+  {
+    courseId: 'bch-201',
+    courseCode: 'BCH 201',
+    topicId: 'citric-acid-cycle',
+    topicName: 'Citric Acid Cycle',
+    lessonCount: 7,
+    tiers: { C: 1, A: 1, B: 5 },
+    batch: 6,
+    validated: true,
+  },
+  {
+    courseId: 'bch-201',
+    courseCode: 'BCH 201',
+    topicId: 'amino-acids',
+    topicName: 'Amino Acids',
+    lessonCount: 11,
+    tiers: { C: 1, A: 2, B: 8 },
+    batch: 7,
+    validated: true,
+  },
+  {
+    courseId: 'bch-201',
+    courseCode: 'BCH 201',
+    topicId: 'amino-acid-metabolism',
+    topicName: 'Amino Acid Metabolism',
+    lessonCount: 14,
+    tiers: { C: 1, A: 3, B: 10 },
+    batch: 8,
+    validated: true,
+  },
+  {
+    courseId: 'bch-201',
+    courseCode: 'BCH 201',
+    topicId: 'protein-structure-and-function',
+    topicName: 'Protein Structure & Function',
+    lessonCount: 15,
+    tiers: { C: 1, A: 2, B: 12 },
+    batch: 9,
+    validated: true,
+  },
+  {
+    courseId: 'bch-201',
+    courseCode: 'BCH 201',
+    topicId: 'membranes-and-cell-structure',
+    topicName: 'Membranes and Cell Structure',
+    lessonCount: 17,
+    tiers: { C: 1, A: 3, B: 13 },
+    batch: 10,
+    validated: true,
+  },
+  {
+    courseId: 'bch-201',
+    courseCode: 'BCH 201',
+    topicId: 'digestion',
+    topicName: 'Digestion',
+    lessonCount: 4,
+    tiers: { C: 1, B: 3 },
+    batch: 12,
+    validated: true,
+  },
+  {
+    courseId: 'bch-201',
+    courseCode: 'BCH 201',
+    topicId: 'absorption',
+    topicName: 'Absorption',
+    lessonCount: 7,
+    tiers: { C: 1, B: 6 },
+    batch: 12,
+    validated: true,
+  },
+  {
+    courseId: 'bch-201',
+    courseCode: 'BCH 201',
+    topicId: 'protein-calorie-malnutrition',
+    topicName: 'Protein-Calorie Malnutrition (PCM)',
+    lessonCount: 10,
+    tiers: { C: 1, A: 5, B: 4 },
+    batch: 13,
+    validated: true,
+  },
+  {
+    courseId: 'bch-201',
+    courseCode: 'BCH 201',
+    topicId: 'bioenergetics',
+    topicName: 'Bioenergetics',
+    lessonCount: 7,
+    tiers: { C: 1, A: 3, B: 3 },
+    batch: 14,
+    validated: true,
+  },
+  {
+    courseId: 'bch-201',
+    courseCode: 'BCH 201',
+    topicId: 'clinical-biochemistry',
+    topicName: 'Clinical Biochemistry',
+    lessonCount: 6,
+    tiers: { C: 1, A: 2, B: 3 },
+    batch: 14,
+    validated: true,
+  },
+  {
+    courseId: 'bch-201',
+    courseCode: 'BCH 201',
+    topicId: 'nucleotides-and-nucleic-acids',
+    topicName: 'Nucleotides and Nucleic Acids',
+    lessonCount: 11,
+    tiers: { C: 1, A: 3, B: 7 },
+    batch: 15,
     validated: true,
   },
   {

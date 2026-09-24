@@ -11,7 +11,13 @@ import {
   TrendingUp,
   XCircle,
 } from 'lucide-react';
-import { clearProgress, computeStats, type ProgressStats } from '@/lib/progress-storage';
+import {
+  clearProgress,
+  loadProgressStats,
+  onBackendChange,
+  isServerBackendActive,
+  type ProgressStats,
+} from '@/lib/progress-store';
 
 function StatCard({
   icon: Icon,
@@ -56,7 +62,7 @@ function TopicRow({
           <button
             type="button"
             onClick={() => onStudyTopic(topic.topic)}
-            className="focus-ring flex min-h-8 items-center gap-1 rounded-full border border-border bg-card px-2.5 text-[11px] font-bold text-primary transition-all hover:border-primary/40 hover:bg-muted"
+            className="focus-ring flex min-h-11 items-center gap-1 rounded-full border border-border bg-card px-3 text-xs font-bold text-primary transition-all hover:border-primary/40 hover:bg-muted"
             data-testid={`button-study-topic-${topic.topic.toLowerCase().replaceAll(/[^a-z0-9]+/g, '-')}`}
           >
             <BookOpen className="size-3" aria-hidden="true" />
@@ -64,7 +70,7 @@ function TopicRow({
           </button>
         </span>
       </div>
-      <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-[#edf3f0]">
+      <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-secondary">
         <div className="h-full rounded-full bg-accent transition-all" style={{ width: `${topic.percentage}%` }} />
       </div>
     </li>
@@ -118,22 +124,43 @@ export default function ProgressDashboard({
 }) {
   const [stats, setStats] = useState<ProgressStats | null>(null);
   const [dismissed, setDismissed] = useState(false);
+  const [serverSynced, setServerSynced] = useState(isServerBackendActive());
 
+  // Load stats from the active backend, and reload whenever the backend
+  // switches (sign-in merge / sign-out) or the window refocuses (a quiz may
+  // have completed in another tab — guest data is cross-tab shared).
   useEffect(() => {
-    setStats(computeStats());
+    let cancelled = false;
+    const refresh = () => {
+      void loadProgressStats().then((next) => {
+        if (!cancelled) setStats(next);
+      });
+    };
+    refresh();
+    const unsubscribe = onBackendChange(() => {
+      setServerSynced(isServerBackendActive());
+      refresh();
+    });
+    window.addEventListener('focus', refresh);
+    return () => {
+      cancelled = true;
+      unsubscribe();
+      window.removeEventListener('focus', refresh);
+    };
   }, []);
 
   if (!stats) return null;
 
   return (
-    <div className="rounded-[24px] border border-[#d9d2c1] bg-card p-5 shadow-[0_18px_50px_hsl(191_38%_18%_/_0.07)] sm:p-7" data-testid="progress-dashboard">
+    <div className="rounded-2xl border border-border bg-card p-5 shadow-sm sm:p-7" data-testid="progress-dashboard">
+
       <div className="flex items-start justify-between gap-4">
         <div className="flex items-start gap-4">
-          <div className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-[#fff0dd] text-accent">
+          <div className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-accent/10 text-accent">
             <TrendingUp className="size-5" aria-hidden="true" />
           </div>
           <div>
-            <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.2em] text-accent">Progress</p>
+            <p className="font-mono text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Progress</p>
             <h2 className="mt-2 font-serif text-2xl font-semibold tracking-[-0.04em] text-primary sm:text-3xl">
               Your study progress
             </h2>
@@ -142,18 +169,20 @@ export default function ProgressDashboard({
             </p>
           </div>
         </div>
-        <button
-          type="button"
-          onClick={() => {
-            clearProgress();
-            setStats(computeStats());
-          }}
-          className="focus-ring flex size-9 items-center justify-center rounded-full border border-border bg-background text-primary transition-colors hover:bg-muted"
-          aria-label="Clear all saved progress"
-          data-testid="button-progress-clear"
-        >
-          <RefreshCw className="size-4" aria-hidden="true" />
-        </button>
+        {!serverSynced && (
+          <button
+            type="button"
+            onClick={() => {
+              clearProgress();
+              void loadProgressStats().then(setStats);
+            }}
+            className="focus-ring flex min-h-11 min-w-11 items-center justify-center rounded-full border border-border bg-background text-primary transition-colors hover:bg-muted"
+            aria-label="Clear all saved progress"
+            data-testid="button-progress-clear"
+          >
+            <RefreshCw className="size-4" aria-hidden="true" />
+          </button>
+        )}
       </div>
 
       <div className="mt-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -207,9 +236,9 @@ export default function ProgressDashboard({
                   </span>
                   <span className="font-bold text-primary">{quiz.percentage}%</span>
                 </div>
-                <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-[#edf3f0]">
+                <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-secondary">
                   <div
-                    className={`h-full rounded-full transition-all ${quiz.percentage >= 75 ? 'bg-[#67a774]' : 'bg-accent'}`}
+                    className={`h-full rounded-full transition-all ${quiz.percentage >= 75 ? 'bg-success' : 'bg-accent'}`}
                     style={{ width: `${quiz.percentage}%` }}
                   />
                 </div>
@@ -220,11 +249,12 @@ export default function ProgressDashboard({
       </section>
 
       {!dismissed && stats.quizzesCompleted === 0 && (
-        <div className="mt-3 flex items-start gap-3 rounded-2xl border border-[#ded7c6] bg-[#f2ede0]/75 px-4 py-3.5">
+        <div className="mt-3 flex items-start gap-3 rounded-2xl border border-border bg-muted/60 px-4 py-3.5">
           <Info className="mt-0.5 size-4 shrink-0 text-accent" aria-hidden="true" />
           <p className="text-xs leading-5 text-muted-foreground">
-            Progress is stored on this device in your browser — it survives refreshes but is not synced
-            across devices. Complete a quiz to start tracking.
+            {serverSynced
+              ? 'Your quizzes are saved to your account and follow you across devices.'
+              : 'Progress is stored on this device in your browser — it survives refreshes but is not synced across devices. Complete a quiz to start tracking.'}
           </p>
           <button
             type="button"

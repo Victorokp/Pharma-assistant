@@ -12,6 +12,12 @@ tags:
     description: Health operations
   - name: pharma
     description: Pharmacy education assistant operations
+  - name: users
+    description: Authenticated user profile / sync
+  - name: student
+    description: Persistent student data (requires authentication)
+  - name: documents
+    description: Student-owned academic documents (requires authentication)
 paths:
   /healthz:
     get:
@@ -62,7 +68,414 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/PharmaError"
+  /me:
+    get:
+      operationId: getCurrentUser
+      tags: [users]
+      summary: Current user profile
+      description: Verifies the bearer token, syncs the users row, and returns the minimal profile.
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Current user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "401":
+          description: Missing or invalid session token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PharmaError"
+        "503":
+          description: Authentication is not configured on this server
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PharmaError"
+  /student/lesson-progress:
+    get:
+      operationId: getLessonProgress
+      tags: [student]
+      summary: Lesson progress for the authenticated user
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Lesson progress items
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LessonProgressList"
+    put:
+      operationId: putLessonProgress
+      tags: [student]
+      summary: Upsert lesson progress for one node
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LessonProgressInput"
+      responses:
+        "200":
+          description: Stored lesson progress
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LessonProgress"
+  /student/quiz-results:
+    get:
+      operationId: getQuizResults
+      tags: [student]
+      summary: Quiz history for the authenticated user
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Quiz results, newest first
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/QuizResultList"
+    post:
+      operationId: mergeQuizResults
+      tags: [student]
+      summary: Merge quiz results into the account
+      description: Idempotent bulk upsert keyed by the client quiz id — re-uploading the same results never duplicates them.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/QuizResultMergeInput"
+      responses:
+        "200":
+          description: Merge outcome
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/QuizResultMergeResult"
+  /student/study-sessions:
+    get:
+      operationId: getStudySessions
+      tags: [student]
+      summary: Study sessions for the authenticated user
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Study sessions, newest first
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StudySessionList"
+    post:
+      operationId: createStudySession
+      tags: [student]
+      summary: Record one study session
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StudySessionInput"
+      responses:
+        "201":
+          description: Stored study session
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StudySession"
+  /student/saved-items:
+    get:
+      operationId: getSavedItems
+      tags: [student]
+      summary: Saved/bookmarked items
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Saved items, newest first
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SavedItemList"
+    post:
+      operationId: createSavedItem
+      tags: [student]
+      summary: Save/bookmark an item
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SavedItemInput"
+      responses:
+        "201":
+          description: Saved item
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SavedItem"
+  /student/saved-items/{id}:
+    patch:
+      operationId: updateSavedItem
+      tags: [student]
+      summary: Update a saved item's personal note
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SavedItemUpdateInput"
+      responses:
+        "200":
+          description: Updated saved item
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SavedItem"
+        "404":
+          description: Saved item not found for this user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PharmaError"
+    delete:
+      operationId: deleteSavedItem
+      tags: [student]
+      summary: Remove a saved item
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Removed
+  /student/preferences:
+    get:
+      operationId: getPreferences
+      tags: [student]
+      summary: Student preferences
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Preference key/value list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PreferenceList"
+    put:
+      operationId: putPreferences
+      tags: [student]
+      summary: Upsert one or more preferences
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PreferencesUpdateInput"
+      responses:
+        "200":
+          description: Updated preference list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PreferenceList"
+  /documents/upload-url:
+    post:
+      operationId: createDocumentUploadUrl
+      tags: [documents]
+      summary: Start a PDF upload (pending row + presigned PUT URL)
+      description: Bytes go directly from the browser to object storage over the presigned URL; they never pass through the API server.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DocumentCreateUploadInput"
+      responses:
+        "201":
+          description: Pending document created with a presigned upload URL
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DocumentUploadTicket"
+        "400":
+          description: Invalid upload payload (title, size, or content type)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PharmaError"
+        "503":
+          description: Document storage is not configured on this server
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PharmaError"
+  /documents:
+    get:
+      operationId: listDocuments
+      tags: [documents]
+      summary: The authenticated user's ready documents, recent first
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Document list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DocumentList"
+  /documents/{id}/complete:
+    post:
+      operationId: completeDocumentUpload
+      tags: [documents]
+      summary: Verify the uploaded object exists and mark the document ready
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Document is ready
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DocumentEnvelope"
+        "404":
+          description: Document not found for this user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PharmaError"
+        "409":
+          description: Object not found in storage — upload did not complete
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PharmaError"
+  /documents/{id}/url:
+    get:
+      operationId: getDocumentViewUrl
+      tags: [documents]
+      summary: Short-lived signed view URL (~5 minutes)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Signed URL and expiry
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DocumentViewUrl"
+        "404":
+          description: Document not found (or not ready) for this user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PharmaError"
+  /documents/{id}:
+    patch:
+      operationId: updateDocument
+      tags: [documents]
+      summary: Rename or re-file a document (title/course/topic only)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DocumentUpdateInput"
+      responses:
+        "200":
+          description: Updated document
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DocumentEnvelope"
+        "404":
+          description: Document not found for this user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PharmaError"
+    delete:
+      operationId: deleteDocument
+      tags: [documents]
+      summary: Delete a document (storage object best-effort, row always)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Deletion outcome
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DocumentDeleteResult"
+        "404":
+          description: Document not found for this user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PharmaError"
 components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
   schemas:
     HealthStatus:
       type: object
@@ -104,4 +517,551 @@ components:
           type: string
       required:
         - error
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+        email:
+          type: string
+          nullable: true
+        firstName:
+          type: string
+          nullable: true
+        lastName:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - createdAt
+    LessonProgressInput:
+      type: object
+      properties:
+        nodeId:
+          type: string
+          maxLength: 64
+        completed:
+          type: boolean
+        sectionsCompleted:
+          type: integer
+          minimum: 0
+          maximum: 64
+          nullable: true
+      required:
+        - nodeId
+        - completed
+    LessonProgress:
+      type: object
+      properties:
+        nodeId:
+          type: string
+        completed:
+          type: boolean
+        sectionsCompleted:
+          type: integer
+          nullable: true
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - nodeId
+        - completed
+        - updatedAt
+    LessonProgressList:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/LessonProgress"
+      required:
+        - items
+    QuizResultInput:
+      type: object
+      properties:
+        id:
+          type: string
+          maxLength: 64
+        completedAt:
+          type: string
+          format: date-time
+        subject:
+          type: string
+          maxLength: 160
+        difficulty:
+          type: string
+          maxLength: 32
+        totalQuestions:
+          type: integer
+          minimum: 1
+        correct:
+          type: integer
+          minimum: 0
+        incorrect:
+          type: integer
+          minimum: 0
+        percentage:
+          type: integer
+          minimum: 0
+          maximum: 100
+        topicOutcomes:
+          type: array
+          maxItems: 40
+          items:
+            type: object
+            properties:
+              topic:
+                type: string
+                maxLength: 160
+              correct:
+                type: boolean
+            required:
+              - topic
+              - correct
+      required:
+        - id
+        - completedAt
+        - subject
+        - difficulty
+        - totalQuestions
+        - correct
+        - incorrect
+        - percentage
+        - topicOutcomes
+    QuizResultMergeInput:
+      type: object
+      properties:
+        results:
+          type: array
+          maxItems: 500
+          items:
+            $ref: "#/components/schemas/QuizResultInput"
+      required:
+        - results
+    QuizResultMergeResult:
+      type: object
+      properties:
+        merged:
+          type: integer
+        duplicatesSkipped:
+          type: integer
+      required:
+        - merged
+        - duplicatesSkipped
+    QuizResultList:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/QuizResult"
+      required:
+        - items
+    QuizResult:
+      type: object
+      properties:
+        id:
+          type: string
+        subject:
+          type: string
+        difficulty:
+          type: string
+        totalQuestions:
+          type: integer
+        correct:
+          type: integer
+        incorrect:
+          type: integer
+        percentage:
+          type: integer
+        topicOutcomes:
+          type: array
+          items:
+            type: object
+            properties:
+              topic:
+                type: string
+              correct:
+                type: boolean
+            required:
+              - topic
+              - correct
+        completedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - subject
+        - difficulty
+        - totalQuestions
+        - correct
+        - incorrect
+        - percentage
+        - topicOutcomes
+        - completedAt
+    StudySessionInput:
+      type: object
+      properties:
+        id:
+          type: string
+          maxLength: 64
+        nodeId:
+          type: string
+          maxLength: 64
+          nullable: true
+        subject:
+          type: string
+          maxLength: 160
+        topic:
+          type: string
+          maxLength: 200
+        difficulty:
+          type: string
+          maxLength: 32
+        mode:
+          type: string
+          enum:
+            - authored
+            - ai
+        plannedMinutes:
+          type: integer
+          minimum: 1
+          maximum: 180
+          nullable: true
+        sectionsCompleted:
+          type: integer
+          minimum: 0
+          maximum: 64
+          nullable: true
+        status:
+          type: string
+          enum:
+            - completed
+            - ended-early
+        keyTakeaways:
+          type: array
+          maxItems: 20
+          items:
+            type: string
+            maxLength: 500
+        topicsToReview:
+          type: array
+          maxItems: 20
+          items:
+            type: string
+            maxLength: 200
+        startedAt:
+          type: string
+          format: date-time
+        endedAt:
+          type: string
+          format: date-time
+      required:
+        - subject
+        - topic
+        - difficulty
+        - mode
+        - status
+        - keyTakeaways
+        - topicsToReview
+        - startedAt
+        - endedAt
+    StudySession:
+      type: object
+      properties:
+        id:
+          type: string
+        nodeId:
+          type: string
+          nullable: true
+        subject:
+          type: string
+        topic:
+          type: string
+        difficulty:
+          type: string
+        mode:
+          type: string
+        status:
+          type: string
+        startedAt:
+          type: string
+          format: date-time
+        endedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - subject
+        - topic
+        - difficulty
+        - mode
+        - status
+        - startedAt
+        - endedAt
+    StudySessionList:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/StudySession"
+      required:
+        - items
+    SavedItemInput:
+      type: object
+      properties:
+        id:
+          type: string
+          maxLength: 64
+        kind:
+          type: string
+          enum:
+            - lesson
+        nodeId:
+          type: string
+          maxLength: 64
+          nullable: true
+        title:
+          type: string
+          maxLength: 300
+        note:
+          type: string
+          maxLength: 1000
+          nullable: true
+      required:
+        - kind
+        - title
+    SavedItemUpdateInput:
+      type: object
+      properties:
+        note:
+          type: string
+          maxLength: 1000
+          nullable: true
+      required:
+        - note
+    DocumentMeta:
+      type: object
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+          maxLength: 200
+        courseCode:
+          type: string
+          nullable: true
+          maxLength: 40
+        topicHint:
+          type: string
+          nullable: true
+          maxLength: 120
+        kind:
+          type: string
+          enum: [pdf]
+        sizeBytes:
+          type: integer
+          minimum: 1
+        status:
+          type: string
+          enum: [pending, ready, failed]
+        pageCount:
+          type: integer
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        lastAccessedAt:
+          type: string
+          format: date-time
+          nullable: true
+      required:
+        - id
+        - title
+        - kind
+        - sizeBytes
+        - status
+        - createdAt
+        - updatedAt
+    DocumentList:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/DocumentMeta"
+      required:
+        - items
+    DocumentCreateUploadInput:
+      type: object
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 200
+        courseCode:
+          type: string
+          minLength: 1
+          maxLength: 40
+          nullable: true
+        topicHint:
+          type: string
+          minLength: 1
+          maxLength: 120
+          nullable: true
+        sizeBytes:
+          type: integer
+          minimum: 1
+          maximum: 26214400
+        contentType:
+          type: string
+          enum: [application/pdf]
+      required:
+        - title
+        - sizeBytes
+        - contentType
+    DocumentUploadTicket:
+      type: object
+      properties:
+        documentId:
+          type: string
+        uploadUrl:
+          type: string
+        headers:
+          type: object
+          properties:
+            Content-Type:
+              type: string
+          required:
+            - Content-Type
+      required:
+        - documentId
+        - uploadUrl
+    DocumentEnvelope:
+      type: object
+      properties:
+        document:
+          $ref: "#/components/schemas/DocumentMeta"
+      required:
+        - document
+    DocumentViewUrl:
+      type: object
+      properties:
+        url:
+          type: string
+        expiresIn:
+          type: integer
+      required:
+        - url
+    DocumentUpdateInput:
+      type: object
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 200
+        courseCode:
+          type: string
+          minLength: 1
+          maxLength: 40
+          nullable: true
+        topicHint:
+          type: string
+          minLength: 1
+          maxLength: 120
+          nullable: true
+    DocumentDeleteResult:
+      type: object
+      properties:
+        ok:
+          type: boolean
+        storageDeleted:
+          type: boolean
+      required:
+        - ok
+        - storageDeleted
+    SavedItem:
+      type: object
+      properties:
+        id:
+          type: string
+        kind:
+          type: string
+        nodeId:
+          type: string
+          nullable: true
+        title:
+          type: string
+        note:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - kind
+        - title
+        - createdAt
+    SavedItemList:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/SavedItem"
+      required:
+        - items
+    PreferenceInput:
+      type: object
+      properties:
+        key:
+          type: string
+          maxLength: 64
+        value:
+          type: string
+          maxLength: 300
+      required:
+        - key
+        - value
+    PreferencesUpdateInput:
+      type: object
+      properties:
+        preferences:
+          type: array
+          maxItems: 50
+          items:
+            $ref: "#/components/schemas/PreferenceInput"
+      required:
+        - preferences
+    Preference:
+      type: object
+      properties:
+        key:
+          type: string
+        value:
+          type: string
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - key
+        - value
+        - updatedAt
+    PreferenceList:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Preference"
+      required:
+        - items
 

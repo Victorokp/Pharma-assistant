@@ -38,3 +38,332 @@ export interface PharmaError {
   error: string;
 }
 
+export interface User {
+  id: string;
+  email?: string | null;
+  firstName?: string | null;
+  lastName?: string | null;
+  createdAt: string;
+}
+
+export interface LessonProgressInput {
+  /** @maxLength 64 */
+  nodeId: string;
+  completed: boolean;
+  /**
+     * @minimum 0
+     * @maximum 64
+     */
+  sectionsCompleted?: number | null;
+}
+
+export interface LessonProgress {
+  nodeId: string;
+  completed: boolean;
+  sectionsCompleted?: number | null;
+  updatedAt: string;
+}
+
+export interface LessonProgressList {
+  items: LessonProgress[];
+}
+
+export type QuizResultInputTopicOutcomesItem = {
+  /** @maxLength 160 */
+  topic: string;
+  correct: boolean;
+};
+
+export interface QuizResultInput {
+  /** @maxLength 64 */
+  id: string;
+  completedAt: string;
+  /** @maxLength 160 */
+  subject: string;
+  /** @maxLength 32 */
+  difficulty: string;
+  /** @minimum 1 */
+  totalQuestions: number;
+  /** @minimum 0 */
+  correct: number;
+  /** @minimum 0 */
+  incorrect: number;
+  /**
+     * @minimum 0
+     * @maximum 100
+     */
+  percentage: number;
+  /** @maxItems 40 */
+  topicOutcomes: QuizResultInputTopicOutcomesItem[];
+}
+
+export interface QuizResultMergeInput {
+  /** @maxItems 500 */
+  results: QuizResultInput[];
+}
+
+export interface QuizResultMergeResult {
+  merged: number;
+  duplicatesSkipped: number;
+}
+
+export type QuizResultTopicOutcomesItem = {
+  topic: string;
+  correct: boolean;
+};
+
+export interface QuizResult {
+  id: string;
+  subject: string;
+  difficulty: string;
+  totalQuestions: number;
+  correct: number;
+  incorrect: number;
+  percentage: number;
+  topicOutcomes: QuizResultTopicOutcomesItem[];
+  completedAt: string;
+}
+
+export interface QuizResultList {
+  items: QuizResult[];
+}
+
+export type StudySessionInputMode = typeof StudySessionInputMode[keyof typeof StudySessionInputMode];
+
+
+export const StudySessionInputMode = {
+  authored: 'authored',
+  ai: 'ai',
+} as const;
+
+export type StudySessionInputStatus = typeof StudySessionInputStatus[keyof typeof StudySessionInputStatus];
+
+
+export const StudySessionInputStatus = {
+  completed: 'completed',
+  'ended-early': 'ended-early',
+} as const;
+
+export interface StudySessionInput {
+  /** @maxLength 64 */
+  id?: string;
+  /** @maxLength 64 */
+  nodeId?: string | null;
+  /** @maxLength 160 */
+  subject: string;
+  /** @maxLength 200 */
+  topic: string;
+  /** @maxLength 32 */
+  difficulty: string;
+  mode: StudySessionInputMode;
+  /**
+     * @minimum 1
+     * @maximum 180
+     */
+  plannedMinutes?: number | null;
+  /**
+     * @minimum 0
+     * @maximum 64
+     */
+  sectionsCompleted?: number | null;
+  status: StudySessionInputStatus;
+  /**
+     * @maxItems 20
+     * @items.maxLength 500
+     */
+  keyTakeaways: string[];
+  /**
+     * @maxItems 20
+     * @items.maxLength 200
+     */
+  topicsToReview: string[];
+  startedAt: string;
+  endedAt: string;
+}
+
+export interface StudySession {
+  id: string;
+  nodeId?: string | null;
+  subject: string;
+  topic: string;
+  difficulty: string;
+  mode: string;
+  status: string;
+  startedAt: string;
+  endedAt: string;
+}
+
+export interface StudySessionList {
+  items: StudySession[];
+}
+
+export type SavedItemInputKind = typeof SavedItemInputKind[keyof typeof SavedItemInputKind];
+
+
+export const SavedItemInputKind = {
+  lesson: 'lesson',
+} as const;
+
+export interface SavedItemInput {
+  /** @maxLength 64 */
+  id?: string;
+  kind: SavedItemInputKind;
+  /** @maxLength 64 */
+  nodeId?: string | null;
+  /** @maxLength 300 */
+  title: string;
+  /** @maxLength 1000 */
+  note?: string | null;
+}
+
+export interface SavedItemUpdateInput {
+  /** @maxLength 1000 */
+  note: string | null;
+}
+
+export type DocumentMetaKind = typeof DocumentMetaKind[keyof typeof DocumentMetaKind];
+
+
+export const DocumentMetaKind = {
+  pdf: 'pdf',
+} as const;
+
+export type DocumentMetaStatus = typeof DocumentMetaStatus[keyof typeof DocumentMetaStatus];
+
+
+export const DocumentMetaStatus = {
+  pending: 'pending',
+  ready: 'ready',
+  failed: 'failed',
+} as const;
+
+export interface DocumentMeta {
+  id: string;
+  /** @maxLength 200 */
+  title: string;
+  /** @maxLength 40 */
+  courseCode?: string | null;
+  /** @maxLength 120 */
+  topicHint?: string | null;
+  kind: DocumentMetaKind;
+  /** @minimum 1 */
+  sizeBytes: number;
+  status: DocumentMetaStatus;
+  pageCount?: number | null;
+  createdAt: string;
+  updatedAt: string;
+  lastAccessedAt?: string | null;
+}
+
+export interface DocumentList {
+  items: DocumentMeta[];
+}
+
+export type DocumentCreateUploadInputContentType = typeof DocumentCreateUploadInputContentType[keyof typeof DocumentCreateUploadInputContentType];
+
+
+export const DocumentCreateUploadInputContentType = {
+  'application/pdf': 'application/pdf',
+} as const;
+
+export interface DocumentCreateUploadInput {
+  /**
+     * @minLength 1
+     * @maxLength 200
+     */
+  title: string;
+  /**
+     * @minLength 1
+     * @maxLength 40
+     */
+  courseCode?: string | null;
+  /**
+     * @minLength 1
+     * @maxLength 120
+     */
+  topicHint?: string | null;
+  /**
+     * @minimum 1
+     * @maximum 26214400
+     */
+  sizeBytes: number;
+  contentType: DocumentCreateUploadInputContentType;
+}
+
+export type DocumentUploadTicketHeaders = {
+  'Content-Type': string;
+};
+
+export interface DocumentUploadTicket {
+  documentId: string;
+  uploadUrl: string;
+  headers?: DocumentUploadTicketHeaders;
+}
+
+export interface DocumentEnvelope {
+  document: DocumentMeta;
+}
+
+export interface DocumentViewUrl {
+  url: string;
+  expiresIn?: number;
+}
+
+export interface DocumentUpdateInput {
+  /**
+     * @minLength 1
+     * @maxLength 200
+     */
+  title?: string;
+  /**
+     * @minLength 1
+     * @maxLength 40
+     */
+  courseCode?: string | null;
+  /**
+     * @minLength 1
+     * @maxLength 120
+     */
+  topicHint?: string | null;
+}
+
+export interface DocumentDeleteResult {
+  ok: boolean;
+  storageDeleted: boolean;
+}
+
+export interface SavedItem {
+  id: string;
+  kind: string;
+  nodeId?: string | null;
+  title: string;
+  note?: string | null;
+  createdAt: string;
+}
+
+export interface SavedItemList {
+  items: SavedItem[];
+}
+
+export interface PreferenceInput {
+  /** @maxLength 64 */
+  key: string;
+  /** @maxLength 300 */
+  value: string;
+}
+
+export interface PreferencesUpdateInput {
+  /** @maxItems 50 */
+  preferences: PreferenceInput[];
+}
+
+export interface Preference {
+  key: string;
+  value: string;
+  updatedAt: string;
+}
+
+export interface PreferenceList {
+  items: Preference[];
+}
+

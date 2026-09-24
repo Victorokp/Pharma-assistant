@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ApiError, askPharmaAssistant } from '@workspace/api-client-react';
 import { MathText } from '@/components/math-text';
 import { stripGeneratedDisclaimer } from '@/lib/math-text';
-import { saveQuizResult } from '@/lib/progress-storage';
+import { saveQuizResult } from '@/lib/progress-store';
 import {
   AlertTriangle,
   BookOpen,
@@ -176,7 +176,7 @@ function performanceMessage(percentage: number): string {
 
 function Disclaimer() {
   return (
-    <div className="flex items-start gap-3 rounded-2xl border border-[#ded7c6] bg-[#f2ede0]/75 px-4 py-3.5">
+    <div className="flex items-start gap-3 rounded-2xl border border-border bg-muted/60 px-4 py-3.5">
       <Info className="mt-0.5 size-4 shrink-0 text-accent" aria-hidden="true" />
       <p className="text-xs leading-5 text-muted-foreground">
         <span className="font-semibold text-primary">Educational use only:</span>{' '}
@@ -356,13 +356,13 @@ export default function QuizMode({
 
   if (phase === 'setup') {
     return (
-      <div className="rounded-[24px] border border-[#d9d2c1] bg-card p-5 shadow-[0_18px_50px_hsl(191_38%_18%_/_0.07)] sm:p-7" data-testid="quiz-mode-setup">
+      <div className="rounded-2xl border border-border bg-card p-5 shadow-sm sm:p-7" data-testid="quiz-mode-setup">
         <div className="flex items-start gap-4">
-          <div className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-[#e7f0ed] text-primary">
+          <div className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-secondary text-primary">
             <Brain className="size-5" aria-hidden="true" />
           </div>
           <div>
-            <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.2em] text-accent">Quiz Mode</p>
+            <p className="font-mono text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Quiz Mode</p>
             <h2 className="mt-2 font-serif text-2xl font-semibold tracking-[-0.04em] text-primary sm:text-3xl">
               Test what you know
             </h2>
@@ -401,7 +401,7 @@ export default function QuizMode({
                 placeholder="e.g. BCH 201 · Enzymes"
                 maxLength={120}
                 autoFocus
-                className="focus-ring mt-1.5 min-h-11 w-full rounded-xl border border-[#d9d2c1] bg-background px-4 text-sm text-primary placeholder:text-[#9d988c] focus:border-[#a7bcb4] focus:outline-none"
+                className="focus-ring mt-1.5 min-h-11 w-full rounded-xl border border-input bg-background px-4 text-sm text-primary placeholder:text-muted-foreground focus:border-ring focus:outline-none"
                 data-testid="input-quiz-custom-topic"
               />
             </label>
@@ -419,7 +419,7 @@ export default function QuizMode({
                 aria-pressed={difficulty === option.value}
                 className={`focus-ring rounded-2xl border p-3 text-left transition-all ${
                   difficulty === option.value
-                    ? 'border-primary bg-[#edf3f0] shadow-[0_10px_30px_hsl(191_38%_18%_/_0.08)]'
+                    ? 'border-primary bg-secondary shadow-sm'
                     : 'border-border bg-background hover:border-primary/40'
                 }`}
                 data-testid={`button-quiz-difficulty-${option.value.toLowerCase()}`}
@@ -454,7 +454,7 @@ export default function QuizMode({
         </fieldset>
 
         {setupError && (
-          <p className="mt-4 rounded-xl border border-[#e4b9a6] bg-[#fff4ed] px-4 py-3 text-sm text-primary" role="alert" data-testid="status-quiz-setup-error">
+          <p className="mt-4 rounded-xl border border-error/30 bg-error/8 px-4 py-3 text-sm text-primary" role="alert" data-testid="status-quiz-setup-error">
             {setupError}
           </p>
         )}
@@ -464,7 +464,7 @@ export default function QuizMode({
             type="button"
             onClick={() => void startQuiz()}
             disabled={!subjectTopic.trim()}
-            className="focus-ring flex min-h-11 items-center justify-center gap-2 rounded-xl bg-primary px-6 text-sm font-bold text-primary-foreground transition-all hover:-translate-y-0.5 hover:bg-[#294f55] disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:translate-y-0"
+            className="focus-ring flex min-h-11 items-center justify-center gap-2 rounded-xl bg-primary px-6 text-sm font-bold text-primary-foreground transition-all hover:-translate-y-0.5 hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:translate-y-0"
             data-testid="button-start-quiz"
           >
             <ListChecks className="size-4" aria-hidden="true" />
@@ -484,7 +484,7 @@ export default function QuizMode({
 
   if (phase === 'loading') {
     return (
-      <div className="rounded-[24px] border border-[#d9d2c1] bg-card p-8 shadow-[0_18px_50px_hsl(191_38%_18%_/_0.07)] sm:p-10" data-testid="quiz-mode-loading">
+      <div className="rounded-2xl border border-border bg-card p-8 shadow-sm sm:p-10" data-testid="quiz-mode-loading">
         <div className="flex flex-col items-center text-center">
           <div className="flex size-12 items-center justify-center rounded-2xl bg-secondary text-primary">
             <Sparkles className="size-6 animate-pulse-soft" aria-hidden="true" />
@@ -504,9 +504,9 @@ export default function QuizMode({
 
   if (phase === 'error') {
     return (
-      <div className="rounded-[24px] border border-[#e4b9a6] bg-[#fff4ed] p-6 sm:p-8" data-testid="quiz-mode-error">
+      <div className="rounded-2xl border border-error/30 bg-error/8 p-6 sm:p-8" data-testid="quiz-mode-error">
         <div className="flex items-start gap-4">
-          <div className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-[#ffe1cf] text-accent">
+          <div className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-error/12 text-accent">
             <AlertTriangle className="size-5" aria-hidden="true" />
           </div>
           <div>
@@ -521,7 +521,7 @@ export default function QuizMode({
           <button
             type="button"
             onClick={retryQuiz}
-            className="focus-ring flex min-h-11 items-center gap-2 rounded-xl bg-primary px-5 text-sm font-bold text-primary-foreground transition-all hover:-translate-y-0.5 hover:bg-[#294f55]"
+            className="focus-ring flex min-h-11 items-center gap-2 rounded-xl bg-primary px-5 text-sm font-bold text-primary-foreground transition-all hover:-translate-y-0.5 hover:brightness-110"
             data-testid="button-quiz-retry-generation"
           >
             <RotateCcw className="size-4" aria-hidden="true" />
@@ -544,9 +544,9 @@ export default function QuizMode({
     const total = answeredQuestions.length || 1;
     const percentage = Math.round((score.correct / total) * 100);
     return (
-      <div className="rounded-[24px] border border-[#d9d2c1] bg-card shadow-[0_18px_50px_hsl(191_38%_18%_/_0.07)]" data-testid="quiz-mode-results">
+      <div className="rounded-2xl border border-border bg-card shadow-sm" data-testid="quiz-mode-results">
         <div className="border-b border-border px-5 py-6 sm:px-7">
-          <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.2em] text-accent">Quiz complete</p>
+          <p className="font-mono text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Quiz complete</p>
           <h2 className="mt-2 font-serif text-3xl font-semibold tracking-[-0.05em] text-primary sm:text-4xl">
             {score.correct} / {answeredQuestions.length || questions.length}
           </h2>
@@ -554,11 +554,11 @@ export default function QuizMode({
             {percentage}% · {performanceMessage(percentage)}
           </p>
           <div className="mt-4 flex gap-2 text-xs font-semibold">
-            <span className="flex items-center gap-1.5 rounded-full bg-[#e7f0ed] px-3 py-1.5 text-primary">
-              <CheckCircle2 className="size-3.5 text-[#67a774]" aria-hidden="true" />
+            <span className="flex items-center gap-1.5 rounded-full bg-secondary px-3 py-1.5 text-primary">
+              <CheckCircle2 className="size-3.5 text-success" aria-hidden="true" />
               {score.correct} correct
             </span>
-            <span className="flex items-center gap-1.5 rounded-full bg-[#fff0dd] px-3 py-1.5 text-primary">
+            <span className="flex items-center gap-1.5 rounded-full bg-accent/10 px-3 py-1.5 text-primary">
               <XCircle className="size-3.5 text-accent" aria-hidden="true" />
               {score.incorrect} incorrect
             </span>
@@ -593,7 +593,7 @@ export default function QuizMode({
                   {index + 1}. <MathText content={entry.question?.question ?? ''} />
                 </p>
                 {entry.correct ? (
-                  <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-[#67a774]" aria-hidden="true" />
+                  <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-success" aria-hidden="true" />
                 ) : (
                   <XCircle className="mt-0.5 size-4 shrink-0 text-accent" aria-hidden="true" />
                 )}
@@ -617,7 +617,7 @@ export default function QuizMode({
           <button
             type="button"
             onClick={retryQuiz}
-            className="focus-ring flex min-h-11 items-center justify-center gap-2 rounded-xl bg-primary px-5 text-sm font-bold text-primary-foreground transition-all hover:-translate-y-0.5 hover:bg-[#294f55]"
+            className="focus-ring flex min-h-11 items-center justify-center gap-2 rounded-xl bg-primary px-5 text-sm font-bold text-primary-foreground transition-all hover:-translate-y-0.5 hover:brightness-110"
             data-testid="button-retry-quiz"
           >
             <RotateCcw className="size-4" aria-hidden="true" />
@@ -662,10 +662,10 @@ export default function QuizMode({
   const progressPercent = questions.length > 0 ? ((current + 1) / questions.length) * 100 : 0;
 
   return (
-    <div className="rounded-[24px] border border-[#d9d2c1] bg-card shadow-[0_18px_50px_hsl(191_38%_18%_/_0.07)]" data-testid="quiz-mode-active">
+    <div className="rounded-2xl border border-border bg-card shadow-sm" data-testid="quiz-mode-active">
       <div className="flex items-center justify-between gap-4 border-b border-border px-5 py-4 sm:px-7">
         <div>
-          <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.2em] text-accent">
+          <p className="font-mono text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
             Quiz Mode · {setup?.subjectTopic}
           </p>
           <h2 className="mt-1 font-serif text-xl font-semibold tracking-[-0.04em] text-primary sm:text-2xl">
@@ -673,13 +673,13 @@ export default function QuizMode({
           </h2>
         </div>
         <div className="shrink-0 text-right">
-          <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">Score</p>
+          <p className="font-mono text-[11px] uppercase tracking-[0.14em] text-muted-foreground">Score</p>
           <p className="text-sm font-bold text-primary">{score.correct} ✓ · {score.incorrect} ✗</p>
         </div>
         <button
           type="button"
           onClick={newQuiz}
-          className="focus-ring ml-auto flex size-9 items-center justify-center rounded-full border border-border bg-background text-primary transition-colors hover:bg-muted"
+          className="focus-ring ml-auto flex min-h-11 min-w-11 items-center justify-center rounded-full border border-border bg-background text-primary transition-colors hover:bg-muted"
           aria-label="End quiz and return to setup"
           data-testid="button-quiz-quit"
         >
@@ -688,7 +688,7 @@ export default function QuizMode({
       </div>
 
       <div className="px-5 pt-4 sm:px-7">
-        <div className="h-1.5 w-full overflow-hidden rounded-full bg-[#edf3f0]">
+        <div className="h-1.5 w-full overflow-hidden rounded-full bg-secondary">
           <div
             className="h-full rounded-full bg-primary transition-all duration-300"
             style={{ width: `${progressPercent}%` }}
@@ -699,8 +699,8 @@ export default function QuizMode({
 
       <div className="px-5 py-5 sm:px-7">
         <div className="flex flex-wrap items-center gap-2">
-          <span className="rounded-full bg-[#e7f0ed] px-3 py-1 text-[11px] font-semibold text-primary">{question.topic}</span>
-          <span className="rounded-full bg-[#fff0dd] px-3 py-1 text-[11px] font-semibold text-primary">{question.difficulty}</span>
+          <span className="rounded-full bg-secondary px-3 py-1 text-[11px] font-semibold text-primary">{question.topic}</span>
+          <span className="rounded-full bg-accent/10 px-3 py-1 text-[11px] font-semibold text-primary">{question.difficulty}</span>
         </div>
 
         <p className="mt-4 whitespace-pre-wrap text-base font-semibold leading-7 text-primary sm:text-lg">
@@ -722,18 +722,18 @@ export default function QuizMode({
                 onClick={() => setSelected(letter)}
                 className={`focus-ring flex w-full items-start gap-3 rounded-2xl border p-3.5 text-left transition-all ${
                   isCorrectLetter
-                    ? 'border-[#67a774] bg-[#e7f0ed]'
+                    ? 'border-success bg-secondary'
                     : isWrongPick
-                      ? 'border-[#e4b9a6] bg-[#fff4ed]'
+                      ? 'border-error/30 bg-error/8'
                       : isPicked
-                        ? 'border-primary bg-[#edf3f0] shadow-[0_0_0_3px_#f2cd70] animate-pulse-soft'
+                        ? 'border-primary bg-secondary shadow-[0_0_0_3px_hsl(var(--ring)/0.25)]'
                         : 'border-border bg-background hover:border-primary/40'
                 } ${submittedAnswer ? 'cursor-default' : ''}`}
                 data-testid={`button-option-${letter}`}
               >
                 <span className={`flex size-7 shrink-0 items-center justify-center rounded-lg text-xs font-bold ${
                   isCorrectLetter
-                    ? 'bg-[#67a774] text-white'
+                    ? 'bg-success text-success-foreground'
                     : isWrongPick
                       ? 'bg-accent text-white'
                       : isPicked
@@ -762,14 +762,14 @@ export default function QuizMode({
         {submittedAnswer && (
           <div
             className={`mt-5 rounded-2xl border p-4 ${
-              submittedAnswer.correct ? 'border-[#67a774] bg-[#e7f0ed]' : 'border-[#e4b9a6] bg-[#fff4ed]'
+              submittedAnswer.correct ? 'border-success bg-secondary' : 'border-error/30 bg-error/8'
             }`}
             data-testid="quiz-feedback"
           >
             <p className="flex items-center gap-2 text-sm font-bold text-primary">
               {submittedAnswer.correct ? (
                 <>
-                  <CheckCircle2 className="size-4 text-[#67a774]" aria-hidden="true" />
+                  <CheckCircle2 className="size-4 text-success" aria-hidden="true" />
                   Correct!
                 </>
               ) : (
@@ -791,7 +791,7 @@ export default function QuizMode({
               type="button"
               onClick={submitAnswer}
               disabled={selected === null}
-              className="focus-ring flex min-h-11 items-center justify-center gap-2 rounded-xl bg-primary px-6 text-sm font-bold text-primary-foreground transition-all hover:-translate-y-0.5 hover:bg-[#294f55] disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:translate-y-0"
+              className="focus-ring flex min-h-11 items-center justify-center gap-2 rounded-xl bg-primary px-6 text-sm font-bold text-primary-foreground transition-all hover:-translate-y-0.5 hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:translate-y-0"
               data-testid="button-submit-answer"
             >
               <ChevronRight className="size-4" aria-hidden="true" />
@@ -801,7 +801,7 @@ export default function QuizMode({
             <button
               type="button"
               onClick={nextQuestion}
-              className="focus-ring flex min-h-11 items-center justify-center gap-2 rounded-xl bg-primary px-6 text-sm font-bold text-primary-foreground transition-all hover:-translate-y-0.5 hover:bg-[#294f55]"
+              className="focus-ring flex min-h-11 items-center justify-center gap-2 rounded-xl bg-primary px-6 text-sm font-bold text-primary-foreground transition-all hover:-translate-y-0.5 hover:brightness-110"
               data-testid="button-next-question-quiz"
             >
               {isLastQuestion ? 'See Results' : 'Next Question'}

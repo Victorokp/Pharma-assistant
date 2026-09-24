@@ -1,25 +1,60 @@
-import { useState } from 'react';
-import { BookOpen, ChevronDown, ChevronRight, FlaskConical, GraduationCap, Layers, ListTree, PenLine } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { BookOpen, CheckCircle2, ChevronDown, ChevronRight, FlaskConical, GraduationCap, Layers, ListTree, PenLine } from 'lucide-react';
 import { CURRICULUM, countSubtopics, countTopics, type CurriculumCourse, type CurriculumHandoff, type CurriculumSubtopic, type CurriculumTopic, buildHandoff } from '@/lib/curriculum';
+import { useLessonProgress } from '@/lib/lesson-progress-hook';
 
 /**
  * Pharmacy Curriculum browser.
  *
  * Three-level drill-down: courses (cards) → topics → subtopics.
  * Every topic and subtopic offers "Study this topic" and "Quiz me on this
- * topic" handoffs into the existing Study Mode and Quiz Mode (Phase 3).
+ * topic" handoffs into Study Mode and Quiz Mode via route navigation.
+ *
+ * Standalone (no props) it renders its own course grid, as before. When
+ * embedded in the Courses library, the library owns course selection and
+ * hands the selected course in via `startCourseId` + `onExit`.
  */
 export default function CurriculumBrowser({
   onStudyTopic,
   onQuizTopic,
+  startCourseId = null,
+  onExit,
 }: {
   onStudyTopic: (handoff: CurriculumHandoff) => void;
   onQuizTopic: (handoff: CurriculumHandoff) => void;
+  /** When set, the browser opens directly on this course (library-embedded mode). */
+  startCourseId?: string | null;
+  /** Called when the student leaves the course detail view (library-embedded mode). */
+  onExit?: () => void;
 }) {
-  const [selectedCourseId, setSelectedCourseId] = useState<string | null>(null);
+  const [internalCourseId, setInternalCourseId] = useState<string | null>(null);
+  const embedded = startCourseId !== null || onExit !== undefined;
+  const selectedCourseId = embedded ? startCourseId : internalCourseId;
   const [openTopicIds, setOpenTopicIds] = useState<Set<string>>(new Set());
+  // Completed-lesson dots (Phase 9): surfaces the previously write-only
+  // lesson-progress read path; empty map for guests, so no dots show.
+  const { completedMap, synced: progressSynced } = useLessonProgress();
 
   const selectedCourse = CURRICULUM.find((course) => course.id === selectedCourseId) ?? null;
+
+  // Reset open topics whenever the selected course changes.
+  useEffect(() => {
+    setOpenTopicIds(new Set());
+  }, [selectedCourseId]);
+
+  const exitCourse = () => {
+    setOpenTopicIds(new Set());
+    if (embedded) {
+      onExit?.();
+    } else {
+      setInternalCourseId(null);
+    }
+  };
+
+  const selectCourse = (courseId: string) => {
+    setOpenTopicIds(new Set());
+    setInternalCourseId(courseId);
+  };
 
   const toggleTopic = (topicId: string) => {
     setOpenTopicIds((current) => {
@@ -34,30 +69,30 @@ export default function CurriculumBrowser({
   };
 
   return (
-    <div className="rounded-[24px] border border-[#d9d2c1] bg-card p-5 shadow-[0_18px_50px_hsl(191_38%_18%_/_0.07)] sm:p-7" data-testid="curriculum-browser">
-      <div className="flex items-start gap-4">
-        <div className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-[#e7f0ed] text-primary">
-          <GraduationCap className="size-5" aria-hidden="true" />
-        </div>
-        <div>
-          <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.2em] text-accent">Curriculum</p>
-          <h2 className="mt-2 font-serif text-2xl font-semibold tracking-[-0.04em] text-primary sm:text-3xl">
-            {selectedCourse ? `${selectedCourse.code} — ${selectedCourse.name}` : 'Pharmacy courses'}
-          </h2>
-          <p className="mt-2 text-sm leading-6 text-muted-foreground">
-            {selectedCourse
-              ? selectedCourse.topics.length > 0
+    <div className="rounded-2xl border border-border bg-card p-5 shadow-sm sm:p-7" data-testid="curriculum-browser">
+      {/* Contextual header only while a course is open — the Courses library
+          already introduces the curriculum at the top level. */}
+      {selectedCourse && (
+        <div className="flex items-start gap-4" data-testid="curriculum-course-heading">
+          <div className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-secondary text-primary">
+            <GraduationCap className="size-5" aria-hidden="true" />
+          </div>
+          <div className="min-w-0">
+            <p className="font-mono text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">{selectedCourse.code}</p>
+            <h2 className="mt-1 font-serif text-2xl font-semibold tracking-[-0.03em] text-primary">{selectedCourse.name}</h2>
+            <p className="mt-2 text-sm leading-6 text-muted-foreground">
+              {selectedCourse.topics.length > 0
                 ? 'Browse the topics in this course. Select a topic to see its subtopics.'
-                : 'Topics for this course have not been added yet — they will appear here once added.'
-              : 'The map of your pharmacy programme. Select a course to see its topics.'}
-          </p>
+                : 'Topics for this course have not been added yet — they will appear here once added.'}
+            </p>
+          </div>
         </div>
-      </div>
+      )}
 
       {!selectedCourse && (
-        <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3" data-testid="curriculum-course-grid">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3" data-testid="curriculum-course-grid">
           {CURRICULUM.map((course) => (
-            <CourseCard key={course.id} course={course} onSelect={() => setSelectedCourseId(course.id)} />
+            <CourseCard key={course.id} course={course} onSelect={() => selectCourse(course.id)} />
           ))}
         </div>
       )}
@@ -66,11 +101,8 @@ export default function CurriculumBrowser({
         <div className="mt-6" data-testid="curriculum-course-detail">
           <button
             type="button"
-            onClick={() => {
-              setSelectedCourseId(null);
-              setOpenTopicIds(new Set());
-            }}
-            className="focus-ring flex min-h-9 items-center gap-1.5 rounded-full border border-border bg-background px-3.5 text-xs font-semibold text-primary transition-all hover:border-primary/40 hover:bg-muted"
+            onClick={exitCourse}
+            className="focus-ring flex min-h-11 items-center gap-1.5 rounded-full border border-border bg-background px-3.5 text-xs font-semibold text-primary transition-all hover:border-primary/40 hover:bg-muted"
             data-testid="button-curriculum-back"
           >
             <ChevronRight className="size-3.5 rotate-180" aria-hidden="true" />
@@ -81,20 +113,25 @@ export default function CurriculumBrowser({
             {selectedCourse.topics.map((topic) => {
               const isOpen = openTopicIds.has(topic.id);
               return (
-                <li key={topic.id} className="rounded-2xl border border-border bg-background">
+                <li key={topic.id} className="animate-rise-in rounded-2xl border border-border bg-background">
                   <button
                     type="button"
                     onClick={() => toggleTopic(topic.id)}
                     aria-expanded={isOpen}
-                    className="focus-ring flex min-h-11 w-full items-center justify-between gap-3 px-4 py-3 text-left"
+                    className="focus-ring flex min-h-12 w-full items-center justify-between gap-3 px-4 py-3 text-left transition-colors hover:bg-muted/60"
                     data-testid={`curriculum-topic-${topic.id}`}
                   >
                     <span className="flex min-w-0 items-center gap-2.5">
-                      <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-[#fff0dd] text-accent">
+                      <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-secondary text-primary">
                         <ListTree className="size-3.5" aria-hidden="true" />
                       </span>
                       <span className="min-w-0">
-                        <span className="block truncate text-sm font-semibold text-primary">{topic.name}</span>
+                        <span className="flex min-w-0 items-center gap-1.5">
+                          <span className="truncate text-sm font-semibold text-primary">{topic.name}</span>
+                          {progressSynced && topic.subtopics.length > 0 && topic.subtopics.every((subtopic) => completedMap.get(subtopic.id)) && (
+                            <CheckCircle2 className="size-3.5 shrink-0 text-success" aria-hidden="true" data-testid={`topic-complete-${topic.id}`} />
+                          )}
+                        </span>
                         <span className="block text-xs text-muted-foreground">
                           {topic.subtopics.length > 0
                             ? `${topic.subtopics.length} subtopic${topic.subtopics.length === 1 ? '' : 's'}`
@@ -109,7 +146,11 @@ export default function CurriculumBrowser({
                       {topic.subtopics.map((subtopic) => (
                         <li key={subtopic.id} className="py-1.5">
                           <div className="flex items-center gap-2.5">
-                            <span className="size-1.5 shrink-0 rounded-full bg-accent" aria-hidden="true" />
+                            {progressSynced && completedMap.get(subtopic.id) ? (
+                              <CheckCircle2 className="size-3.5 shrink-0 text-success" aria-hidden="true" data-testid={`subtopic-complete-${subtopic.id}`} />
+                            ) : (
+                              <span className="size-1.5 shrink-0 rounded-full bg-accent" aria-hidden="true" />
+                            )}
                             <span className="min-w-0 flex-1 text-sm text-muted-foreground">{subtopic.name}</span>
                           </div>
                           <HandoffActions
@@ -138,11 +179,12 @@ export default function CurriculumBrowser({
   );
 }
 
-function CourseCard({ course, onSelect }: { course: CurriculumCourse; onSelect: () => void }) {  return (
+function CourseCard({ course, onSelect }: { course: CurriculumCourse; onSelect: () => void }) {
+  return (
     <button
       type="button"
       onClick={onSelect}
-      className="focus-ring flex min-h-11 flex-col items-start rounded-2xl border border-border bg-background p-4 text-left transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-[0_10px_30px_hsl(191_38%_18%_/_0.08)]"
+      className="focus-ring group flex min-h-11 flex-col items-start rounded-2xl border border-border bg-background p-4 text-left transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md active:translate-y-0 sm:p-5"
       data-testid={`curriculum-course-${course.id}`}
     >
       <span className="flex w-full items-center justify-between gap-2">
@@ -150,15 +192,15 @@ function CourseCard({ course, onSelect }: { course: CurriculumCourse; onSelect: 
           {course.code.startsWith('BCH') ? <FlaskConical className="size-4" aria-hidden="true" /> : <BookOpen className="size-4" aria-hidden="true" />}
         </span>
         <span className="flex items-center gap-1.5">
-          <span className="rounded-full bg-[#fff0dd] px-2 py-0.5 font-mono text-[9px] font-bold uppercase tracking-[0.12em] text-accent">
+          <span className="rounded-full bg-muted px-2 py-0.5 font-mono text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground">
             {course.level}
           </span>
-          <span className="font-mono text-[10px] font-bold uppercase tracking-[0.14em] text-accent">{course.code}</span>
+          <span className="font-mono text-[11px] font-bold uppercase tracking-[0.14em] text-muted-foreground">{course.code}</span>
         </span>
       </span>
-      <span className="mt-3 block text-sm font-bold text-primary">{course.name}</span>
-      <span className="mt-1 block text-xs leading-5 text-muted-foreground">{course.description}</span>
-      <span className="mt-3 flex items-center gap-1.5 text-[11px] font-semibold text-muted-foreground">
+      <span className="mt-3 block text-base font-bold leading-6 text-primary">{course.name}</span>
+      <span className="mt-1 block text-sm leading-6 text-muted-foreground">{course.description}</span>
+      <span className="mt-3 flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
         <Layers className="size-3" aria-hidden="true" />
         {countTopics(course)} topics · {countSubtopics(course)} subtopics · {course.creditUnits} {course.creditUnits === 1 ? 'unit' : 'units'}
       </span>
@@ -187,7 +229,7 @@ function HandoffActions({
       <button
         type="button"
         onClick={() => onStudyTopic(handoff)}
-        className="focus-ring inline-flex min-h-10 flex-1 items-center justify-center gap-1.5 rounded-full border border-primary/30 bg-[#e7f0ed] px-4 text-xs font-bold text-primary transition-all hover:border-primary/60 hover:bg-[#dce9e4]"
+        className="focus-ring inline-flex min-h-10 flex-1 items-center justify-center gap-1.5 rounded-full border border-primary/25 bg-secondary px-4 text-xs font-bold text-primary transition-all hover:border-primary/50 hover:bg-primary/10"
         data-testid={`button-${testPrefix}-study`}
       >
         <GraduationCap className="size-3.5" aria-hidden="true" />
@@ -196,7 +238,7 @@ function HandoffActions({
       <button
         type="button"
         onClick={() => onQuizTopic(handoff)}
-        className="focus-ring inline-flex min-h-10 flex-1 items-center justify-center gap-1.5 rounded-full border border-accent/30 bg-[#fff0dd] px-4 text-xs font-bold text-accent transition-all hover:border-accent/60 hover:bg-[#fdeacc]"
+        className="focus-ring inline-flex min-h-10 flex-1 items-center justify-center gap-1.5 rounded-full border border-accent/25 bg-accent/8 px-4 text-xs font-bold text-accent transition-all hover:border-accent/50 hover:bg-accent/14"
         data-testid={`button-${testPrefix}-quiz`}
       >
         <PenLine className="size-3.5" aria-hidden="true" />

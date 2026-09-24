@@ -37,3 +37,484 @@ export const AskPharmaAssistantResponse = zod.object({
 })
 
 
+/**
+ * Verifies the bearer token, syncs the users row, and returns the minimal profile.
+ * @summary Current user profile
+ */
+export const GetCurrentUserResponse = zod.object({
+  "id": zod.string(),
+  "email": zod.string().nullish(),
+  "firstName": zod.string().nullish(),
+  "lastName": zod.string().nullish(),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Lesson progress for the authenticated user
+ */
+export const GetLessonProgressResponse = zod.object({
+  "items": zod.array(zod.object({
+  "nodeId": zod.string(),
+  "completed": zod.boolean(),
+  "sectionsCompleted": zod.number().int().nullish(),
+  "updatedAt": zod.coerce.date()
+}))
+})
+
+
+/**
+ * @summary Upsert lesson progress for one node
+ */
+export const putLessonProgressBodyNodeIdMax = 64;
+
+export const putLessonProgressBodySectionsCompletedMin = 0;
+export const putLessonProgressBodySectionsCompletedMax = 64;
+
+
+
+export const PutLessonProgressBody = zod.object({
+  "nodeId": zod.string().max(putLessonProgressBodyNodeIdMax),
+  "completed": zod.boolean(),
+  "sectionsCompleted": zod.number().int().min(putLessonProgressBodySectionsCompletedMin).max(putLessonProgressBodySectionsCompletedMax).nullish()
+})
+
+export const PutLessonProgressResponse = zod.object({
+  "nodeId": zod.string(),
+  "completed": zod.boolean(),
+  "sectionsCompleted": zod.number().int().nullish(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Quiz history for the authenticated user
+ */
+export const GetQuizResultsResponse = zod.object({
+  "items": zod.array(zod.object({
+  "id": zod.string(),
+  "subject": zod.string(),
+  "difficulty": zod.string(),
+  "totalQuestions": zod.number().int(),
+  "correct": zod.number().int(),
+  "incorrect": zod.number().int(),
+  "percentage": zod.number().int(),
+  "topicOutcomes": zod.array(zod.object({
+  "topic": zod.string(),
+  "correct": zod.boolean()
+})),
+  "completedAt": zod.coerce.date()
+}))
+})
+
+
+/**
+ * Idempotent bulk upsert keyed by the client quiz id — re-uploading the same results never duplicates them.
+ * @summary Merge quiz results into the account
+ */
+export const mergeQuizResultsBodyResultsItemIdMax = 64;
+
+export const mergeQuizResultsBodyResultsItemSubjectMax = 160;
+
+export const mergeQuizResultsBodyResultsItemDifficultyMax = 32;
+
+
+export const mergeQuizResultsBodyResultsItemCorrectMin = 0;
+
+export const mergeQuizResultsBodyResultsItemIncorrectMin = 0;
+
+export const mergeQuizResultsBodyResultsItemPercentageMin = 0;
+export const mergeQuizResultsBodyResultsItemPercentageMax = 100;
+
+export const mergeQuizResultsBodyResultsItemTopicOutcomesItemTopicMax = 160;
+
+export const mergeQuizResultsBodyResultsItemTopicOutcomesMax = 40;
+
+export const mergeQuizResultsBodyResultsMax = 500;
+
+
+
+export const MergeQuizResultsBody = zod.object({
+  "results": zod.array(zod.object({
+  "id": zod.string().max(mergeQuizResultsBodyResultsItemIdMax),
+  "completedAt": zod.coerce.date(),
+  "subject": zod.string().max(mergeQuizResultsBodyResultsItemSubjectMax),
+  "difficulty": zod.string().max(mergeQuizResultsBodyResultsItemDifficultyMax),
+  "totalQuestions": zod.number().int().min(1),
+  "correct": zod.number().int().min(mergeQuizResultsBodyResultsItemCorrectMin),
+  "incorrect": zod.number().int().min(mergeQuizResultsBodyResultsItemIncorrectMin),
+  "percentage": zod.number().int().min(mergeQuizResultsBodyResultsItemPercentageMin).max(mergeQuizResultsBodyResultsItemPercentageMax),
+  "topicOutcomes": zod.array(zod.object({
+  "topic": zod.string().max(mergeQuizResultsBodyResultsItemTopicOutcomesItemTopicMax),
+  "correct": zod.boolean()
+})).max(mergeQuizResultsBodyResultsItemTopicOutcomesMax)
+})).max(mergeQuizResultsBodyResultsMax)
+})
+
+export const MergeQuizResultsResponse = zod.object({
+  "merged": zod.number().int(),
+  "duplicatesSkipped": zod.number().int()
+})
+
+
+/**
+ * @summary Study sessions for the authenticated user
+ */
+export const GetStudySessionsResponse = zod.object({
+  "items": zod.array(zod.object({
+  "id": zod.string(),
+  "nodeId": zod.string().nullish(),
+  "subject": zod.string(),
+  "topic": zod.string(),
+  "difficulty": zod.string(),
+  "mode": zod.string(),
+  "status": zod.string(),
+  "startedAt": zod.coerce.date(),
+  "endedAt": zod.coerce.date()
+}))
+})
+
+
+/**
+ * @summary Record one study session
+ */
+export const createStudySessionBodyIdMax = 64;
+
+export const createStudySessionBodyNodeIdMax = 64;
+
+export const createStudySessionBodySubjectMax = 160;
+
+export const createStudySessionBodyTopicMax = 200;
+
+export const createStudySessionBodyDifficultyMax = 32;
+
+export const createStudySessionBodyPlannedMinutesMax = 180;
+
+export const createStudySessionBodySectionsCompletedMin = 0;
+export const createStudySessionBodySectionsCompletedMax = 64;
+
+export const createStudySessionBodyKeyTakeawaysItemMax = 500;
+
+export const createStudySessionBodyKeyTakeawaysMax = 20;
+
+export const createStudySessionBodyTopicsToReviewItemMax = 200;
+
+export const createStudySessionBodyTopicsToReviewMax = 20;
+
+
+
+export const CreateStudySessionBody = zod.object({
+  "id": zod.string().max(createStudySessionBodyIdMax).optional(),
+  "nodeId": zod.string().max(createStudySessionBodyNodeIdMax).nullish(),
+  "subject": zod.string().max(createStudySessionBodySubjectMax),
+  "topic": zod.string().max(createStudySessionBodyTopicMax),
+  "difficulty": zod.string().max(createStudySessionBodyDifficultyMax),
+  "mode": zod.enum(['authored', 'ai']),
+  "plannedMinutes": zod.number().int().min(1).max(createStudySessionBodyPlannedMinutesMax).nullish(),
+  "sectionsCompleted": zod.number().int().min(createStudySessionBodySectionsCompletedMin).max(createStudySessionBodySectionsCompletedMax).nullish(),
+  "status": zod.enum(['completed', 'ended-early']),
+  "keyTakeaways": zod.array(zod.string().max(createStudySessionBodyKeyTakeawaysItemMax)).max(createStudySessionBodyKeyTakeawaysMax),
+  "topicsToReview": zod.array(zod.string().max(createStudySessionBodyTopicsToReviewItemMax)).max(createStudySessionBodyTopicsToReviewMax),
+  "startedAt": zod.coerce.date(),
+  "endedAt": zod.coerce.date()
+})
+
+export const CreateStudySessionResponse = zod.object({
+  "id": zod.string(),
+  "nodeId": zod.string().nullish(),
+  "subject": zod.string(),
+  "topic": zod.string(),
+  "difficulty": zod.string(),
+  "mode": zod.string(),
+  "status": zod.string(),
+  "startedAt": zod.coerce.date(),
+  "endedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Saved/bookmarked items
+ */
+export const GetSavedItemsResponse = zod.object({
+  "items": zod.array(zod.object({
+  "id": zod.string(),
+  "kind": zod.string(),
+  "nodeId": zod.string().nullish(),
+  "title": zod.string(),
+  "note": zod.string().nullish(),
+  "createdAt": zod.coerce.date()
+}))
+})
+
+
+/**
+ * @summary Save/bookmark an item
+ */
+export const createSavedItemBodyIdMax = 64;
+
+export const createSavedItemBodyNodeIdMax = 64;
+
+export const createSavedItemBodyTitleMax = 300;
+
+export const createSavedItemBodyNoteMax = 1000;
+
+
+
+export const CreateSavedItemBody = zod.object({
+  "id": zod.string().max(createSavedItemBodyIdMax).optional(),
+  "kind": zod.enum(['lesson']),
+  "nodeId": zod.string().max(createSavedItemBodyNodeIdMax).nullish(),
+  "title": zod.string().max(createSavedItemBodyTitleMax),
+  "note": zod.string().max(createSavedItemBodyNoteMax).nullish()
+})
+
+export const CreateSavedItemResponse = zod.object({
+  "id": zod.string(),
+  "kind": zod.string(),
+  "nodeId": zod.string().nullish(),
+  "title": zod.string(),
+  "note": zod.string().nullish(),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Update a saved item's personal note
+ */
+export const UpdateSavedItemParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const updateSavedItemBodyNoteMax = 1000;
+
+
+
+export const UpdateSavedItemBody = zod.object({
+  "note": zod.string().max(updateSavedItemBodyNoteMax).nullable()
+})
+
+export const UpdateSavedItemResponse = zod.object({
+  "id": zod.string(),
+  "kind": zod.string(),
+  "nodeId": zod.string().nullish(),
+  "title": zod.string(),
+  "note": zod.string().nullish(),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Remove a saved item
+ */
+export const DeleteSavedItemParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const DeleteSavedItemResponse = zod.void()
+
+
+/**
+ * @summary Student preferences
+ */
+export const GetPreferencesResponse = zod.object({
+  "items": zod.array(zod.object({
+  "key": zod.string(),
+  "value": zod.string(),
+  "updatedAt": zod.coerce.date()
+}))
+})
+
+
+/**
+ * @summary Upsert one or more preferences
+ */
+export const putPreferencesBodyPreferencesItemKeyMax = 64;
+
+export const putPreferencesBodyPreferencesItemValueMax = 300;
+
+export const putPreferencesBodyPreferencesMax = 50;
+
+
+
+export const PutPreferencesBody = zod.object({
+  "preferences": zod.array(zod.object({
+  "key": zod.string().max(putPreferencesBodyPreferencesItemKeyMax),
+  "value": zod.string().max(putPreferencesBodyPreferencesItemValueMax)
+})).max(putPreferencesBodyPreferencesMax)
+})
+
+export const PutPreferencesResponse = zod.object({
+  "items": zod.array(zod.object({
+  "key": zod.string(),
+  "value": zod.string(),
+  "updatedAt": zod.coerce.date()
+}))
+})
+
+
+/**
+ * Bytes go directly from the browser to object storage over the presigned URL; they never pass through the API server.
+ * @summary Start a PDF upload (pending row + presigned PUT URL)
+ */
+export const createDocumentUploadUrlBodyTitleMax = 200;
+
+export const createDocumentUploadUrlBodyCourseCodeMax = 40;
+
+export const createDocumentUploadUrlBodyTopicHintMax = 120;
+
+export const createDocumentUploadUrlBodySizeBytesMax = 26214400;
+
+
+
+export const CreateDocumentUploadUrlBody = zod.object({
+  "title": zod.string().min(1).max(createDocumentUploadUrlBodyTitleMax),
+  "courseCode": zod.string().min(1).max(createDocumentUploadUrlBodyCourseCodeMax).nullish(),
+  "topicHint": zod.string().min(1).max(createDocumentUploadUrlBodyTopicHintMax).nullish(),
+  "sizeBytes": zod.number().int().min(1).max(createDocumentUploadUrlBodySizeBytesMax),
+  "contentType": zod.enum(['application/pdf'])
+})
+
+export const CreateDocumentUploadUrlResponse = zod.object({
+  "documentId": zod.string(),
+  "uploadUrl": zod.string(),
+  "headers": zod.object({
+  "Content-Type": zod.string()
+}).optional()
+})
+
+
+/**
+ * @summary The authenticated user's ready documents, recent first
+ */
+export const listDocumentsResponseItemsItemTitleMax = 200;
+
+export const listDocumentsResponseItemsItemCourseCodeMax = 40;
+
+export const listDocumentsResponseItemsItemTopicHintMax = 120;
+
+
+
+
+export const ListDocumentsResponse = zod.object({
+  "items": zod.array(zod.object({
+  "id": zod.string(),
+  "title": zod.string().max(listDocumentsResponseItemsItemTitleMax),
+  "courseCode": zod.string().max(listDocumentsResponseItemsItemCourseCodeMax).nullish(),
+  "topicHint": zod.string().max(listDocumentsResponseItemsItemTopicHintMax).nullish(),
+  "kind": zod.enum(['pdf']),
+  "sizeBytes": zod.number().int().min(1),
+  "status": zod.enum(['pending', 'ready', 'failed']),
+  "pageCount": zod.number().int().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date(),
+  "lastAccessedAt": zod.coerce.date().nullish()
+}))
+})
+
+
+/**
+ * @summary Verify the uploaded object exists and mark the document ready
+ */
+export const CompleteDocumentUploadParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const completeDocumentUploadResponseDocumentTitleMax = 200;
+
+export const completeDocumentUploadResponseDocumentCourseCodeMax = 40;
+
+export const completeDocumentUploadResponseDocumentTopicHintMax = 120;
+
+
+
+
+export const CompleteDocumentUploadResponse = zod.object({
+  "document": zod.object({
+  "id": zod.string(),
+  "title": zod.string().max(completeDocumentUploadResponseDocumentTitleMax),
+  "courseCode": zod.string().max(completeDocumentUploadResponseDocumentCourseCodeMax).nullish(),
+  "topicHint": zod.string().max(completeDocumentUploadResponseDocumentTopicHintMax).nullish(),
+  "kind": zod.enum(['pdf']),
+  "sizeBytes": zod.number().int().min(1),
+  "status": zod.enum(['pending', 'ready', 'failed']),
+  "pageCount": zod.number().int().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date(),
+  "lastAccessedAt": zod.coerce.date().nullish()
+})
+})
+
+
+/**
+ * @summary Short-lived signed view URL (~5 minutes)
+ */
+export const GetDocumentViewUrlParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const GetDocumentViewUrlResponse = zod.object({
+  "url": zod.string(),
+  "expiresIn": zod.number().int().optional()
+})
+
+
+/**
+ * @summary Rename or re-file a document (title/course/topic only)
+ */
+export const UpdateDocumentParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const updateDocumentBodyTitleMax = 200;
+
+export const updateDocumentBodyCourseCodeMax = 40;
+
+export const updateDocumentBodyTopicHintMax = 120;
+
+
+
+export const UpdateDocumentBody = zod.object({
+  "title": zod.string().min(1).max(updateDocumentBodyTitleMax).optional(),
+  "courseCode": zod.string().min(1).max(updateDocumentBodyCourseCodeMax).nullish(),
+  "topicHint": zod.string().min(1).max(updateDocumentBodyTopicHintMax).nullish()
+})
+
+export const updateDocumentResponseDocumentTitleMax = 200;
+
+export const updateDocumentResponseDocumentCourseCodeMax = 40;
+
+export const updateDocumentResponseDocumentTopicHintMax = 120;
+
+
+
+
+export const UpdateDocumentResponse = zod.object({
+  "document": zod.object({
+  "id": zod.string(),
+  "title": zod.string().max(updateDocumentResponseDocumentTitleMax),
+  "courseCode": zod.string().max(updateDocumentResponseDocumentCourseCodeMax).nullish(),
+  "topicHint": zod.string().max(updateDocumentResponseDocumentTopicHintMax).nullish(),
+  "kind": zod.enum(['pdf']),
+  "sizeBytes": zod.number().int().min(1),
+  "status": zod.enum(['pending', 'ready', 'failed']),
+  "pageCount": zod.number().int().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date(),
+  "lastAccessedAt": zod.coerce.date().nullish()
+})
+})
+
+
+/**
+ * @summary Delete a document (storage object best-effort, row always)
+ */
+export const DeleteDocumentParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const DeleteDocumentResponse = zod.object({
+  "ok": zod.boolean(),
+  "storageDeleted": zod.boolean()
+})
+
+

@@ -4,6 +4,7 @@ import { MathText } from '@/components/math-text';
 import { normalizeEscapedNewlines, stripGeneratedDisclaimer } from '@/lib/math-text';
 import { firstCheckQuestion, getAuthoredLesson, orderedSections, recapTakeaways } from '@/lib/content';
 import type { Lesson } from '@/lib/content';
+import { recordStudySession, saveLessonProgress } from '@/lib/progress-store';
 import {
   BookOpen,
   Brain,
@@ -214,7 +215,7 @@ function buildSessionContext(
 
 function Disclaimer() {
   return (
-    <div className="flex items-start gap-3 rounded-2xl border border-[#ded7c6] bg-[#f2ede0]/75 px-4 py-3.5">
+    <div className="flex items-start gap-3 rounded-2xl border border-border bg-muted/60 px-4 py-3.5">
       <Info className="mt-0.5 size-4 shrink-0 text-accent" aria-hidden="true" />
       <p className="text-xs leading-5 text-muted-foreground">
         <span className="font-semibold text-primary">Educational use only:</span>{' '}
@@ -246,6 +247,8 @@ export default function StudyMode({
   const [setupError, setSetupError] = useState('');
   /** Context note from the Curriculum handoff; cleared when the student edits. */
   const [curriculumContext, setCurriculumContext] = useState<string | null>(null);
+  /** True when a full course+topic handoff locks the context card in setup. */
+  const [contextLocked, setContextLocked] = useState(false);
 
   // Session state
   const [setup, setSetup] = useState<StudySetup | null>(null);
@@ -270,6 +273,37 @@ export default function StudyMode({
   useEffect(() => {
     transcriptRef.current = transcript;
   }, [transcript]);
+
+  /** When the current sitting began — persisted with server session records. */
+  const sessionStartedAtRef = useRef<Date>(new Date());
+  /** Set when the student ends an AI-path session early (honest status). */
+  const endedEarlyRef = useRef(false);
+
+  /** Persist the finished session to the account (no-op for guests). */
+  const persistSession = useCallback(
+    (options: {
+      mode: 'authored' | 'ai';
+      status: 'completed' | 'ended-early';
+      step: TutorStep;
+    }) => {
+      if (!setup) return;
+      void recordStudySession({
+        nodeId: authored?.lessonId ?? null,
+        subject: setup.subject,
+        topic: setup.topic,
+        difficulty: setup.difficulty,
+        mode: options.mode,
+        plannedMinutes: setup.duration,
+        sectionsCompleted: options.mode === 'authored' ? (authored?.stepIndex ?? 0) + 1 : null,
+        status: options.status,
+        keyTakeaways: options.step.keyTakeaways,
+        topicsToReview: options.step.topicsToReview,
+        startedAt: sessionStartedAtRef.current,
+        endedAt: new Date(),
+      });
+    },
+    [authored, setup],
+  );
 
   const appendEntry = useCallback((entry: Omit<SessionEntry, 'id'>) => {
     const withId: SessionEntry = { ...entry, id: nextId.current++ };
@@ -304,6 +338,8 @@ export default function StudyMode({
           setLastStep(step);
           setPendingQuestion(null);
           setPhase('summary');
+          persistSession({ mode: 'ai', status: endedEarlyRef.current ? 'ended-early' : 'completed', step });
+          endedEarlyRef.current = false;
           return;
         }
 
@@ -328,7 +364,7 @@ export default function StudyMode({
         setIsThinking(false);
       }
     },
-    [appendEntry, setup],
+    [appendEntry, persistSession, setup],
   );
 
   const startSession = useCallback(async () => {
@@ -354,6 +390,8 @@ export default function StudyMode({
     setObjectives([]);
     setLastStep(null);
     setStudentAnswer('');
+    sessionStartedAtRef.current = new Date();
+    endedEarlyRef.current = false;
     setPhase('session');
 
     // Authored-content-first: if a curated lesson exists for this node, teach
@@ -438,6 +476,15 @@ export default function StudyMode({
         setAuthored(null);
         setAuthoredLesson(null);
         setPhase('summary');
+        persistSession({
+          mode: 'authored',
+          // Reaching the recap counts as completed; ending early is honest.
+          status: action === 'end' && state.stepIndex < sections.length - 1 ? 'ended-early' : 'completed',
+          step,
+        });
+        if (action !== 'end' || state.stepIndex >= sections.length - 1) {
+          void saveLessonProgress(state.lessonId, true);
+        }
         return;
       }
 
@@ -461,7 +508,7 @@ export default function StudyMode({
       setAuthored({ ...state, stepIndex: nextIndex, questionAsked: false });
       setPendingQuestion(null);
     },
-    [appendEntry, authored, authoredLesson],
+    [appendEntry, authored, authoredLesson, persistSession],
   );
 
   const submitAnswer = useCallback(() => {
@@ -486,6 +533,7 @@ export default function StudyMode({
           advanceAuthored('end');
           return;
         }
+        endedEarlyRef.current = true;
         const currentTranscript = transcriptRef.current;
         setStudentAnswer('');
         void callTutor('[END SESSION] Please end the session now: provide key takeaways, areas I struggled with, topics to review, and a short revision summary.', currentTranscript, pendingQuestion);
@@ -518,6 +566,7 @@ export default function StudyMode({
       advanceAuthored('end');
       return;
     }
+    endedEarlyRef.current = true;
     void callTutor(
       '[END SESSION] Please end the session now with key takeaways, areas I struggled with, topics to review, and a short revision summary.',
       transcriptRef.current,
@@ -536,7 +585,13 @@ export default function StudyMode({
     setLastStep(null);
     setStudentAnswer('');
     setSessionError('');
+    // Clear the setup fields so the handoff effect re-hydrates (and re-locks)
+    // from the URL params that are still present. With no params (direct
+    // entry) this simply yields a fresh empty form for a new topic.
+    setSubject('');
+    setTopic('');
     setCurriculumContext(null);
+    setContextLocked(false);
     setAuthored(null);
     setAuthoredLesson(null);
   }, []);
@@ -547,33 +602,39 @@ export default function StudyMode({
     [entries],
   );
 
-  // Quiz Mode hands over weak topics via prefillTopic: fill the topic input
-  // and show the setup form (an active session is never interrupted).
-  // Curriculum handoffs add prefillSubject (course code) and prefillContext
-  // (course name + parent topic) — the student can still edit everything
-  // before starting.
+  // Handoff hydration: Quiz/Progress hand over weak topics via prefillTopic;
+  // "Study this topic" (Courses) and curated lesson routes add prefillSubject
+  // (course code) and prefillContext (course name + parent topic). A full
+  // handoff locks the course/topic into a context card — the student only
+  // picks level/time — with a Change-topic action that reveals the editable
+  // form. Topic-only handoffs keep the editable form with the topic prefilled.
+  // Re-applies whenever the handoff signature changes (new-topic handoffs and
+  // back/forward navigation replace stale context) or after restart while the
+  // fields are empty. An active session is never interrupted.
   const lastPrefillRef = useRef<string | null>(null);
   useEffect(() => {
     if (!prefillTopic) return;
-    if (lastPrefillRef.current === prefillTopic && topic.trim() !== '') return;
-    lastPrefillRef.current = prefillTopic;
+    const signature = `${prefillSubject ?? ''}|${prefillTopic}`;
+    if (lastPrefillRef.current === signature && topic.trim() !== '') return;
+    lastPrefillRef.current = signature;
     setTopic(prefillTopic);
     if (prefillSubject) setSubject(prefillSubject);
     setCurriculumContext(prefillContext ?? null);
     setSetupError('');
+    setContextLocked(Boolean(prefillSubject));
     setPhase((currentPhase) => (currentPhase === 'session' ? currentPhase : 'setup'));
   }, [prefillTopic, prefillSubject, prefillContext, topic]);
 
   if (phase === 'setup') {
     return (
-      <div className="rounded-[24px] border border-[#d9d2c1] bg-card p-5 shadow-[0_18px_50px_hsl(191_38%_18%_/_0.07)] sm:p-7" data-testid="study-mode-setup">
+      <div className="rounded-2xl border border-border bg-card p-5 shadow-sm sm:p-7" data-testid="study-mode-setup">
         <div className="flex items-start gap-4">
-          <div className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-[#fff0dd] text-accent">
+          <div className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-secondary text-primary">
             <GraduationCap className="size-5" aria-hidden="true" />
           </div>
           <div>
-            <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.2em] text-accent">Study Mode</p>
-            <h2 className="mt-2 font-serif text-2xl font-semibold tracking-[-0.04em] text-primary sm:text-3xl">
+            <p className="font-mono text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Study Mode</p>
+            <h2 className="mt-2 font-serif text-[1.375rem] font-semibold tracking-[-0.03em] text-primary sm:text-2xl">
               Your personal pharmacy tutor
             </h2>
             <p className="mt-2 text-sm leading-6 text-muted-foreground">
@@ -582,48 +643,83 @@ export default function StudyMode({
           </div>
         </div>
 
-        <div className="mt-7 grid gap-4 sm:grid-cols-2">
-          <label className="block">
-            <span className="text-sm font-bold text-primary">Subject</span>
-            <input
-              value={subject}
-              onChange={(event) => setSubject(event.target.value)}
-              placeholder="e.g. BCH 201"
-              maxLength={80}
-              className="focus-ring mt-2 min-h-11 w-full rounded-xl border border-[#d9d2c1] bg-background px-4 text-sm text-primary placeholder:text-[#9d988c] focus:border-[#a7bcb4] focus:outline-none"
-              data-testid="input-study-subject"
-            />
-          </label>
-          <label className="block">
-            <span className="text-sm font-bold text-primary">Topic</span>
-            <input
-              value={topic}
-              onChange={(event) => setTopic(event.target.value)}
-              placeholder="e.g. Enzymes"
-              maxLength={120}
-              className="focus-ring mt-2 min-h-11 w-full rounded-xl border border-[#d9d2c1] bg-background px-4 text-sm text-primary placeholder:text-[#9d988c] focus:border-[#a7bcb4] focus:outline-none"
-              data-testid="input-study-topic"
-            />
-          </label>
-        </div>
-
-        <div className="mt-3 flex flex-wrap gap-2">
-          {SUGGESTED_TOPICS.map((suggestion) => (
+        {contextLocked ? (
+          <div
+            className="mt-7 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border bg-secondary/60 px-4 py-3.5"
+            data-testid="study-context-card"
+          >
+            <div className="min-w-0">
+              <p className="font-mono text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                {subject.trim() || 'Selected course'}
+              </p>
+              <p className="mt-0.5 truncate text-sm font-bold text-primary">{topic.trim()}</p>
+              {curriculumContext && (
+                <p className="mt-0.5 truncate text-xs text-muted-foreground">{curriculumContext}</p>
+              )}
+            </div>
             <button
-              key={`${suggestion.subject}-${suggestion.topic}`}
               type="button"
-              onClick={() => {
-                setSubject(suggestion.subject);
-                setTopic(suggestion.topic);
-              }}
-              className="focus-ring rounded-full border border-border bg-background px-3 py-1.5 text-xs font-semibold text-primary transition-all hover:-translate-y-0.5 hover:border-[#b9a974] hover:bg-[#fbf7e9]"
-              data-testid={`button-suggested-${suggestion.subject.toLowerCase().replaceAll(' ', '-')}-${suggestion.topic.toLowerCase().replaceAll(' ', '-')}`}
+              onClick={() => setContextLocked(false)}
+              className="focus-ring flex min-h-9 shrink-0 items-center gap-1.5 rounded-full border border-border bg-background px-3.5 text-xs font-semibold text-primary transition-all hover:border-primary/40 hover:bg-muted"
+              data-testid="button-study-change-topic"
             >
-              {suggestion.subject} · {suggestion.topic}
-              <span className="sr-only"> — fill subject and topic</span>
+              <X className="size-3.5" aria-hidden="true" />
+              Change topic
             </button>
-          ))}
-        </div>
+          </div>
+        ) : (
+          <>
+            <div className="mt-7 grid gap-4 sm:grid-cols-2">
+              <label className="block">
+                <span className="text-sm font-bold text-primary">Subject</span>
+                <input
+                  value={subject}
+                  onChange={(event) => {
+                    setSubject(event.target.value);
+                    setCurriculumContext(null);
+                  }}
+                  placeholder="e.g. BCH 201"
+                  maxLength={80}
+                  className="focus-ring mt-2 min-h-11 w-full rounded-xl border border-input bg-background px-4 text-sm text-primary placeholder:text-muted-foreground focus:border-ring focus:outline-none"
+                  data-testid="input-study-subject"
+                />
+              </label>
+              <label className="block">
+                <span className="text-sm font-bold text-primary">Topic</span>
+                <input
+                  value={topic}
+                  onChange={(event) => {
+                    setTopic(event.target.value);
+                    setCurriculumContext(null);
+                  }}
+                  placeholder="e.g. Enzymes"
+                  maxLength={120}
+                  className="focus-ring mt-2 min-h-11 w-full rounded-xl border border-input bg-background px-4 text-sm text-primary placeholder:text-muted-foreground focus:border-ring focus:outline-none"
+                  data-testid="input-study-topic"
+                />
+              </label>
+            </div>
+
+            <div className="mt-3 flex flex-wrap gap-2">
+              {SUGGESTED_TOPICS.map((suggestion) => (
+                <button
+                  key={`${suggestion.subject}-${suggestion.topic}`}
+                  type="button"
+                  onClick={() => {
+                    setSubject(suggestion.subject);
+                    setTopic(suggestion.topic);
+                    setCurriculumContext(null);
+                  }}
+                  className="focus-ring rounded-full border border-border bg-background px-3 py-1.5 text-xs font-semibold text-primary transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:bg-muted"
+                  data-testid={`button-suggested-${suggestion.subject.toLowerCase().replaceAll(' ', '-')}-${suggestion.topic.toLowerCase().replaceAll(' ', '-')}`}
+                >
+                  {suggestion.subject} · {suggestion.topic}
+                  <span className="sr-only"> — fill subject and topic</span>
+                </button>
+              ))}
+            </div>
+          </>
+        )}
 
         <fieldset className="mt-6">
           <legend className="text-sm font-bold text-primary">Difficulty</legend>
@@ -636,7 +732,7 @@ export default function StudyMode({
                 aria-pressed={difficulty === option.value}
                 className={`focus-ring rounded-2xl border p-3 text-left transition-all ${
                   difficulty === option.value
-                    ? 'border-primary bg-[#edf3f0] shadow-[0_10px_30px_hsl(191_38%_18%_/_0.08)]'
+                    ? 'border-primary bg-secondary shadow-sm'
                     : 'border-border bg-background hover:border-primary/40'
                 }`}
                 data-testid={`button-difficulty-${option.value.toLowerCase()}`}
@@ -674,7 +770,7 @@ export default function StudyMode({
         </fieldset>
 
         {setupError && (
-          <p className="mt-4 rounded-xl border border-[#e4b9a6] bg-[#fff4ed] px-4 py-3 text-sm text-primary" role="alert" data-testid="status-study-setup-error">
+          <p className="mt-4 rounded-xl border border-error/30 bg-error/8 px-4 py-3 text-sm text-primary" role="alert" data-testid="status-study-setup-error">
             {setupError}
           </p>
         )}
@@ -684,7 +780,7 @@ export default function StudyMode({
             type="button"
             onClick={() => void startSession()}
             disabled={!subject.trim() || !topic.trim()}
-            className="focus-ring flex min-h-11 items-center justify-center gap-2 rounded-xl bg-primary px-6 text-sm font-bold text-primary-foreground transition-all hover:-translate-y-0.5 hover:bg-[#294f55] disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:translate-y-0"
+            className="focus-ring flex min-h-11 items-center justify-center gap-2 rounded-xl bg-primary px-6 text-sm font-bold text-primary-foreground shadow-sm transition-all hover:-translate-y-0.5 hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:translate-y-0"
             data-testid="button-start-study"
           >
             <GraduationCap className="size-4" aria-hidden="true" />
@@ -704,14 +800,14 @@ export default function StudyMode({
 
   if (phase === 'summary') {
     return (
-      <div className="rounded-[24px] border border-[#d9d2c1] bg-card p-5 shadow-[0_18px_50px_hsl(191_38%_18%_/_0.07)] sm:p-7" data-testid="study-mode-summary">
+      <div className="rounded-2xl border border-border bg-card p-5 shadow-sm sm:p-7" data-testid="study-mode-summary">
         <div className="flex items-start gap-4">
-          <div className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-[#e7f0ed] text-primary">
+          <div className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-secondary text-primary">
             <CheckCircle2 className="size-5" aria-hidden="true" />
           </div>
           <div>
-            <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.2em] text-accent">Session complete</p>
-            <h2 className="mt-2 font-serif text-2xl font-semibold tracking-[-0.04em] text-primary sm:text-3xl">
+            <p className="font-mono text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Session complete</p>
+            <h2 className="mt-2 font-serif text-2xl font-semibold tracking-[-0.03em] text-primary sm:text-[1.75rem]">
               Great work — here's your wrap-up
             </h2>
             {setup && (
@@ -723,7 +819,7 @@ export default function StudyMode({
         </div>
 
         {lastStep?.content && (
-          <div className="mt-6 whitespace-pre-wrap rounded-2xl border border-[#dce6e1] bg-[#edf3f0] p-4 text-sm leading-6 text-primary">
+          <div className="mt-6 whitespace-pre-wrap rounded-2xl border border-border bg-muted/60 p-4 text-sm leading-6 text-primary">
             <MathText content={lastStep.content} />
           </div>
         )}
@@ -772,7 +868,7 @@ export default function StudyMode({
         <button
           type="button"
           onClick={restart}
-          className="focus-ring mt-6 flex min-h-11 items-center justify-center gap-2 rounded-xl bg-primary px-6 text-sm font-bold text-primary-foreground transition-all hover:-translate-y-0.5 hover:bg-[#294f55]"
+          className="focus-ring mt-6 flex min-h-11 items-center justify-center gap-2 rounded-xl bg-primary px-6 text-sm font-bold text-primary-foreground shadow-sm transition-all hover:-translate-y-0.5 hover:brightness-110"
           data-testid="button-new-study-session"
         >
           <RotateCcw className="size-4" aria-hidden="true" />
@@ -784,11 +880,11 @@ export default function StudyMode({
 
   // Session phase
   return (
-    <div className="rounded-[24px] border border-[#d9d2c1] bg-card shadow-[0_18px_50px_hsl(191_38%_18%_/_0.07)]" data-testid="study-mode-session">
+    <div className="rounded-2xl border border-border bg-card shadow-sm" data-testid="study-mode-session">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-5 py-4 sm:px-7">
         <div>
-          <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.2em] text-accent">Study Mode · live session</p>
-          <h2 className="mt-1 font-serif text-xl font-semibold tracking-[-0.04em] text-primary sm:text-2xl">
+          <p className="font-mono text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Study Mode · live session</p>
+          <h2 className="mt-1 font-serif text-xl font-semibold tracking-[-0.03em] text-primary sm:text-[1.375rem]">
             {setup ? `${setup.subject} — ${setup.topic}` : 'Session'}
           </h2>
           <p className="mt-0.5 text-xs text-muted-foreground">
@@ -809,7 +905,7 @@ export default function StudyMode({
       </div>
 
       {objectives.length > 0 && (
-        <div className="border-b border-border bg-[#edf3f0]/60 px-5 py-4 sm:px-7" data-testid="study-objectives">
+        <div className="border-b border-border bg-secondary/50 px-5 py-4 sm:px-7" data-testid="study-objectives">
           <p className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.14em] text-primary">
             <Sparkles className="size-3.5 text-accent" aria-hidden="true" />
             Learning objectives
@@ -817,7 +913,7 @@ export default function StudyMode({
           <ul className="mt-2 space-y-1.5">
             {objectives.map((objective, index) => (
               <li key={`objective-${index}`} className="flex items-start gap-2 text-sm leading-6 text-muted-foreground">
-                <CheckCircle2 className="mt-1 size-3.5 shrink-0 text-[#67a774]" aria-hidden="true" />
+                <CheckCircle2 className="mt-1 size-3.5 shrink-0 text-success" aria-hidden="true" />
                 {objective}
               </li>
             ))}
@@ -842,7 +938,7 @@ export default function StudyMode({
                 <GraduationCap className="size-4" aria-hidden="true" />
               </div>
               <div className="max-w-[85%]">
-                <div className="whitespace-pre-wrap rounded-2xl rounded-tl-sm border border-[#dce6e1] bg-[#edf3f0] px-4 py-3 text-sm leading-6 text-primary">
+                <div className="whitespace-pre-wrap rounded-2xl rounded-tl-sm border border-border bg-muted/60 px-4 py-3 text-sm leading-[1.6] text-primary">
                   <MathText content={entry.text} />
                 </div>
               </div>
@@ -854,13 +950,13 @@ export default function StudyMode({
             <div className="mt-1 flex size-8 shrink-0 items-center justify-center rounded-full bg-secondary text-primary">
               <GraduationCap className="size-4 animate-pulse-soft" aria-hidden="true" />
             </div>
-            <div className="rounded-2xl rounded-tl-sm bg-[#edf3f0] px-4 py-3 text-sm text-primary">
+            <div className="rounded-2xl rounded-tl-sm bg-muted/60 px-4 py-3 text-sm text-primary">
               <span className="animate-pulse-soft">The tutor is thinking…</span>
             </div>
           </div>
         )}
         {sessionError && (
-          <div className="rounded-2xl border border-[#e4b9a6] bg-[#fff4ed] px-4 py-3 text-sm text-primary" role="alert">
+          <div className="rounded-2xl border border-error/30 bg-error/8 px-4 py-3 text-sm text-primary" role="alert">
             {sessionError}
           </div>
         )}
@@ -887,7 +983,7 @@ export default function StudyMode({
             placeholder={hasPendingQuestion ? 'Type your answer…' : 'Type a question or note for your tutor (optional)…'}
             rows={2}
             maxLength={1000}
-            className="focus-ring w-full resize-none rounded-2xl border border-[#d9d2c1] bg-background px-4 py-3 text-sm leading-6 text-primary placeholder:text-[#9d988c] focus:border-[#a7bcb4] focus:outline-none"
+            className="focus-ring w-full resize-none rounded-2xl border border-input bg-background px-4 py-3 text-sm leading-6 text-primary placeholder:text-muted-foreground focus:border-ring focus:outline-none"
             data-testid="input-study-answer"
             aria-label="Your answer or message to the tutor"
           />
@@ -910,7 +1006,7 @@ export default function StudyMode({
             <button
               type="submit"
               disabled={!studentAnswer.trim() || isThinking}
-              className="focus-ring ml-auto flex min-h-9 items-center gap-1.5 rounded-full bg-primary px-4 text-xs font-bold text-primary-foreground transition-all hover:-translate-y-0.5 hover:bg-[#294f55] disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:translate-y-0"
+              className="focus-ring ml-auto flex min-h-9 items-center gap-1.5 rounded-full bg-primary px-4 text-xs font-bold text-primary-foreground transition-all hover:-translate-y-0.5 hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:translate-y-0"
               data-testid="button-submit-study-answer"
             >
               <Send className="size-3.5" aria-hidden="true" />

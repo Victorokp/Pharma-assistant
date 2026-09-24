@@ -1,6 +1,15 @@
 import { Router, type IRouter } from "express";
 import OpenAI from "openai";
 import { AskPharmaAssistantBody } from "@workspace/api-zod";
+import {
+  buildAiCacheKey,
+  coalesceUpstreamRequest,
+  lookupAiCache,
+  logAiMetrics,
+  recordProviderFailure,
+  storeAiResponse,
+  sweepInflight,
+} from "../lib/ai-cache";
 
 const router: IRouter = Router();
 
@@ -161,11 +170,38 @@ async function askWithHuggingFace(token: string, messages: ChatMessage[], maxTok
   return payload.choices?.[0]?.message?.content?.trim();
 }
 
+// Periodic cleanup of abandoned in-flight coalescing entries (defensive; the
+// promise handlers already remove themselves on settle).
+setInterval(sweepInflight, 60_000).unref();
+// Periodic usage-metrics line (counters only — no request content).
+setInterval(logAiMetrics, 300_000).unref();
+
 router.post("/pharma/ask", async (req, res) => {
   const parsed = AskPharmaAssistantBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: "Please enter a pharmacy or drug-related question." });
     return;
+  }
+
+  // Shared AI cache: serve reusable generic answers without touching the
+  // provider. Personalized/context-dependent requests are screened out
+  // inside lookupAiCache and never touch the cache at all.
+  const requestMode = parsed.data.mode ?? "ask";
+  const cacheable = requestMode === "ask" || requestMode === "drug-profile";
+  if (cacheable) {
+    const cached = await lookupAiCache(requestMode, parsed.data.question, parsed.data.context);
+    if (cached.outcome === "hit") {
+      req.log.info(
+        { mode: requestMode, source: cached.source },
+        "ai-cache hit",
+      );
+      res.set("X-AI-Cache", "HIT");
+      res.json({ answer: cached.answer });
+      return;
+    }
+    if (cached.outcome === "miss") {
+      req.log.info({ mode: requestMode }, "ai-cache miss");
+    }
   }
 
   // Accept the common Hugging Face token naming variants.
@@ -187,15 +223,29 @@ router.post("/pharma/ask", async (req, res) => {
       : parsed.data.mode === "study-session"
         ? 3000
         : 1200;
-    const answer = hfToken
-      ? await askWithHuggingFace(hfToken, messages, maxTokens)
-      : (
-          await new OpenAI({ apiKey: openAIKey }).chat.completions.create({
-            model: "gpt-5.4-mini",
-            max_completion_tokens: maxTokens,
-            messages,
-          })
-        ).choices[0]?.message?.content?.trim();
+
+    // Coalesce identical cacheable requests: concurrent students asking the
+    // same generic question share one upstream call. Non-cacheable modes
+    // (study-session, quiz-generation) always run their own call.
+    const cacheKey = cacheable
+      ? buildAiCacheKey(requestMode, parsed.data.question)
+      : null;
+
+    const runUpstream = async (): Promise<string> => {
+      return hfToken
+        ? ((await askWithHuggingFace(hfToken, messages, maxTokens)) ?? "")
+        : ((
+            await new OpenAI({ apiKey: openAIKey }).chat.completions.create({
+              model: "gpt-5.4-mini",
+              max_completion_tokens: maxTokens,
+              messages,
+            })
+          ).choices[0]?.message?.content?.trim() ?? "");
+    };
+
+    const answer = cacheKey
+      ? await coalesceUpstreamRequest(cacheKey, runUpstream)
+      : await runUpstream();
 
     if (!answer) {
       req.log.error("AI provider returned an empty answer");
@@ -203,8 +253,20 @@ router.post("/pharma/ask", async (req, res) => {
       return;
     }
 
+    // Store only reusable generic answers (cacheable modes, screen passed).
+    if (cacheKey) {
+      void storeAiResponse(
+        requestMode,
+        parsed.data.question,
+        answer,
+        hfToken ? "huggingface" : "openai",
+      );
+    }
+
+    res.set("X-AI-Cache", "MISS");
     res.json({ answer });
   } catch (error) {
+    recordProviderFailure();
     req.log.error({ err: error }, "AI provider request failed");
     const providerCode =
       typeof error === "object" && error !== null && "code" in error ? error.code : undefined;
